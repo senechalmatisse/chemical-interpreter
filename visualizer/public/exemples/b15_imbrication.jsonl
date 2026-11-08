@@ -1,0 +1,15 @@
+{"t":0,"ev":"debut","version":2,"graine":"11","strategie":"aleatoire","workers":2,"programme":"exemples/b15_imbrication.chem"}
+{"t":0.000005,"ev":"init","sol":"s0","parent":null,"regles":["vider","somme"],"mol":[{"id":4,"v":4}]}
+{"t":0.000006,"ev":"init","sol":"s1","parent":"s0","regles":["vider","somme"],"mol":[{"id":3,"v":3}]}
+{"t":0.000006,"ev":"init","sol":"s2","parent":"s1","regles":["somme"],"mol":[{"id":1,"v":1},{"id":2,"v":2}]}
+{"t":0.00006,"ev":"reaction","n":1,"w":0,"sol":"s2","regle":"somme","in":[1,2],"out":[{"id":5,"v":3}]}
+{"t":0.000071,"ev":"inertie","sol":"s2"}
+{"t":0.000073,"ev":"reaction","n":2,"w":0,"sol":"s1","regle":"vider","in":[],"in_sol":["s2"],"out":[]}
+{"t":0.000073,"ev":"dissolution","n":2,"sol":"s1","cible":"s2","mol":[5],"sous":[]}
+{"t":0.000074,"ev":"reaction","n":3,"w":0,"sol":"s1","regle":"somme","in":[5,3],"out":[{"id":1029,"v":6}]}
+{"t":0.000106,"ev":"inertie","sol":"s1"}
+{"t":0.00018,"ev":"reaction","n":4,"w":0,"sol":"s0","regle":"vider","in":[],"in_sol":["s1"],"out":[]}
+{"t":0.00018,"ev":"dissolution","n":4,"sol":"s0","cible":"s1","mol":[1029],"sous":[]}
+{"t":0.000181,"ev":"reaction","n":5,"w":0,"sol":"s0","regle":"somme","in":[1029,4],"out":[{"id":2053,"v":10}]}
+{"t":0.000189,"ev":"inertie","sol":"s0"}
+{"t":0.000192,"ev":"fin","reactions":5,"inerte":true,"motif":"inertie"}

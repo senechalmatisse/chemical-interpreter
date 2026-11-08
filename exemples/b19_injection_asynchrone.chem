@@ -1,0 +1,10 @@
+# B19 - Injection asynchrone dans une sous-solution en cours d'execution (EF-D6)
+# La sous-solution crible 2..50 pendant que 'transmettre' lui envoie, un par
+# un, les entiers 51..100 de la solution principale : 's:ref' designe la
+# sous-solution sans la lier ni attendre son inertie. Les nombres arrivent
+# pendant le calcul et le crible les filtre au fil de l'eau.
+# attendu : { { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 | crible } | transmettre }
+
+let crible      = replace x, y by x if y mod x == 0 ;
+let transmettre = replace x:int, s:ref by inject(x, s) ;
+{ 51..100, { 2..50 | crible } | transmettre }

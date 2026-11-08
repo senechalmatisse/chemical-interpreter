@@ -1,0 +1,18 @@
+# Rust
+engine/target/
+**/*.profraw
+**/*.profdata
+
+# Node
+visualizer/node_modules/
+visualizer/dist/
+
+# Traces et artefacts generes
+*.jsonl
+!visualizer/public/exemples/*.jsonl
+couverture/
+
+# Editeurs / systeme
+.idea/
+.vscode/
+.DS_Store

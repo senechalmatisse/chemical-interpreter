@@ -1,0 +1,7 @@
+# B13 - Programme NON confluent : le resultat depend de l'ordre des reactions.
+# Invariant : il reste une seule molecule, de meme parite que la somme
+# initiale (55, impaire), car x - y et x + y ont la meme parite.
+# (pas de resultat attendu unique ; voir tests/proprietes.rs)
+
+let difference = replace x, y by x - y ;
+{ 1..10 | difference }

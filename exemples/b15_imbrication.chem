@@ -1,0 +1,7 @@
+# B15 - Trois niveaux d'imbrication, dissolutions en cascade
+# { 1, 2 } -> 3 ; dissous dans { 3 } -> 6 ; dissous dans { 4 } -> 10.
+# attendu : { 10 | vider, somme }
+
+let somme = replace x, y by x + y ;
+let vider = replace s:sol by dissolve(s) ;
+{ { { 1, 2 | somme }, 3 | vider, somme }, 4 | vider, somme }

@@ -1,0 +1,516 @@
+/* Jetons : palette de reference (modes clair et sombre selectionnes). */
+:root {
+  color-scheme: light;
+  --surface: #fcfcfb;
+  --plan: #f9f9f7;
+  --encre: #0b0b0b;
+  --encre-secondaire: #52514e;
+  --encre-discrete: #898781;
+  --grille: #e1e0d9;
+  --axe: #c3c2b7;
+  --bordure: rgba(11, 11, 11, 0.1);
+  --accent: #2a78d6;
+  --accent-doux: #cde2fb;
+  --critique: #d03b3b;
+  --rayon: 10px;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--encre);
+  background: var(--plan);
+}
+
+:root[data-theme='sombre'] {
+  color-scheme: dark;
+  --surface: #1a1a19;
+  --plan: #0d0d0d;
+  --encre: #f0efec;
+  --encre-secondaire: #c3c2b7;
+  --encre-discrete: #898781;
+  --grille: #2c2c2a;
+  --axe: #383835;
+  --bordure: rgba(255, 255, 255, 0.1);
+  --accent: #3987e5;
+  --accent-doux: #184f95;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+button,
+select,
+input {
+  font: inherit;
+  color: inherit;
+}
+
+button,
+select {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled),
+select:hover {
+  border-color: var(--axe);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.visuellement-cache {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.application {
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 16px 20px 40px;
+}
+
+.application.survol::after {
+  content: 'Deposez la trace pour la charger';
+  position: fixed;
+  inset: 12px;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--accent);
+  border-radius: var(--rayon);
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  font-size: 18px;
+  pointer-events: none;
+}
+
+.entete {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 20px;
+  margin-bottom: 14px;
+}
+
+.entete h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.entete h1 span {
+  color: var(--encre-secondaire);
+  font-weight: 450;
+}
+
+.chargeur,
+.actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.actions {
+  margin-left: auto;
+}
+
+.erreur {
+  border: 1px solid var(--critique);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+}
+
+.erreur::before {
+  content: '\26A0  ';
+}
+
+.accueil {
+  border: 1px dashed var(--axe);
+  border-radius: var(--rayon);
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--encre-secondaire);
+  background: var(--surface);
+}
+
+.accueil h2 {
+  color: var(--encre);
+  margin-top: 0;
+}
+
+.code {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  background: var(--plan);
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+p.code {
+  display: inline-block;
+  padding: 6px 10px;
+}
+
+.controles {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  margin-bottom: 14px;
+}
+
+.boutons {
+  display: flex;
+  gap: 6px;
+}
+
+.boutons button {
+  min-width: 40px;
+  padding: 6px 10px;
+}
+
+.boutons button.principal {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #ffffff;
+  min-width: 52px;
+}
+
+.curseur {
+  flex: 1 1 260px;
+  display: flex;
+}
+
+.curseur input {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.compteur {
+  color: var(--encre-secondaire);
+  font-variant-numeric: tabular-nums;
+  min-width: 130px;
+}
+
+.compteur strong {
+  color: var(--encre);
+}
+
+.vitesse {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--encre-secondaire);
+}
+
+.scene {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.carte {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  padding: 12px 14px;
+  position: relative;
+  min-width: 0;
+}
+
+.carte > figcaption {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.carte-vue {
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.vue-solutions {
+  height: min(64vh, 640px);
+  min-height: 360px;
+  cursor: grab;
+}
+
+.vue-solutions svg {
+  display: block;
+}
+
+.vue-solutions text {
+  pointer-events: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 8px 6px 2px;
+  color: var(--encre-secondaire);
+  font-size: 12.5px;
+  font-weight: 400;
+}
+
+.legende span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legende .astuce {
+  margin-left: auto;
+  color: var(--encre-discrete);
+}
+
+.pastille {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.anneau {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: inline-block;
+}
+
+.pastille.transit {
+  box-sizing: border-box;
+  border: 1.5px dashed;
+  opacity: 0.85;
+}
+
+.colonne {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.panneau {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  padding: 12px 14px;
+}
+
+.panneau h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--encre-secondaire);
+  margin: 0 0 8px;
+  text-transform: none;
+}
+
+.etape .description {
+  margin: 0 0 10px;
+  font-size: 14.5px;
+  overflow-wrap: anywhere;
+}
+
+.etape .mesure {
+  margin: 0;
+  color: var(--encre-secondaire);
+}
+
+.etape .mesure strong {
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--encre);
+  margin-right: 4px;
+}
+
+.etape .suivante {
+  margin: 8px 0 0;
+  color: var(--encre-discrete);
+  font-size: 12.5px;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 4px 12px;
+  margin: 0;
+}
+
+dt {
+  color: var(--encre-discrete);
+}
+
+dd {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chiffres {
+  font-variant-numeric: tabular-nums;
+}
+
+.avertissements {
+  margin-top: 10px;
+  color: var(--encre-secondaire);
+  font-size: 12.5px;
+}
+
+.avertissements ul {
+  padding-left: 18px;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.graphiques {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.graphiques .large {
+  grid-column: 1 / -1;
+}
+
+.graphique {
+  position: relative;
+  height: 190px;
+}
+
+.graphique svg {
+  display: block;
+  overflow: visible;
+}
+
+.graphique text,
+.vue-solutions text {
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+.graphique .tick text {
+  font-variant-numeric: tabular-nums;
+}
+
+.vide {
+  color: var(--encre-discrete);
+  margin: 8px 0;
+}
+
+.infobulle {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  padding: 6px 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.infobulle-titre {
+  color: var(--encre-secondaire);
+  margin-bottom: 2px;
+}
+
+.infobulle-ligne {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.infobulle-cle {
+  width: 12px;
+  height: 2px;
+  border-radius: 1px;
+  display: inline-block;
+}
+
+.tableau {
+  background: var(--surface);
+  border: 1px solid var(--bordure);
+  border-radius: var(--rayon);
+  padding: 10px 14px;
+}
+
+.tableau summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tableau table {
+  border-collapse: collapse;
+  margin-top: 10px;
+  min-width: 360px;
+}
+
+.tableau caption {
+  text-align: left;
+  color: var(--encre-secondaire);
+  padding-bottom: 6px;
+}
+
+.tableau th,
+.tableau td {
+  text-align: left;
+  padding: 4px 16px 4px 0;
+  border-bottom: 1px solid var(--grille);
+  font-variant-numeric: tabular-nums;
+}
+
+.tableau thead th {
+  color: var(--encre-discrete);
+  font-weight: 500;
+}
+
+@media (max-width: 1100px) {
+  .scene {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .graphiques {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (forced-colors: active) {
+  .boutons button.principal {
+    background: ButtonText;
+    color: ButtonFace;
+  }
+}

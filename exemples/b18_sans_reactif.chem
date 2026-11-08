@@ -1,0 +1,10 @@
+# B18 - Regle sans reactif (EF-D5)
+# 'amorcer' ne consomme rien : elle est applicable dans une solution vide.
+# A usage unique, elle produit les molecules initiales une seule fois (avec
+# 'replace', elle en produirait sans fin : avertissement W0303), puis
+# 'somme' les additionne.
+# attendu : { 42 | somme }
+
+let amorcer = replace-one by 10, 20, 12 ;
+let somme   = replace x, y by x + y ;
+{ | amorcer, somme }

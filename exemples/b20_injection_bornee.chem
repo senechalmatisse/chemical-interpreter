@@ -1,0 +1,10 @@
+# B20 - Injections bornees : regle a usage unique sans reactif consomme (EF-D5, EF-D6)
+# 'alimenter' ne consomme aucune molecule (une reference s:ref n'est pas
+# consommee) : avec 'replace', elle enverrait des molecules sans fin. Avec
+# 'replace-one', elle envoie exactement 50 et 8 a la sous-solution, deja en
+# train de calculer son maximum, puis disparait.
+# attendu : { { 50 | max } }
+
+let max       = replace x, y by x if x >= y ;
+let alimenter = replace-one s:ref by inject(50, s), inject(8, s) ;
+{ { 4, 17, 9 | max } | alimenter }

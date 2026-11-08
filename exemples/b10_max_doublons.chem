@@ -1,0 +1,6 @@
+# B10 - Maximum avec x > y : les doublons du maximum subsistent
+# (comportement documente du cahier des charges).
+# attendu : { 17, 17 | max_strict }
+
+let max_strict = replace x, y by x if x > y ;
+{ 4, 17, 9, 17, 2 | max_strict }

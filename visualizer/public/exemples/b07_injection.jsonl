@@ -1,0 +1,15 @@
+{"t":0,"ev":"debut","version":2,"graine":"3","strategie":"aleatoire","workers":1,"programme":"exemples/b07_injection.chem"}
+{"t":0.000007,"ev":"init","sol":"s0","parent":null,"regles":["envoyer"],"mol":[{"id":1,"v":10},{"id":2,"v":25}]}
+{"t":0.000008,"ev":"init","sol":"s1","parent":"s0","regles":["max"],"mol":[{"id":3,"v":4},{"id":4,"v":17}]}
+{"t":0.000021,"ev":"reaction","n":1,"w":0,"sol":"s1","regle":"max","in":[4,3],"out":[{"id":5,"v":17}]}
+{"t":0.000029,"ev":"inertie","sol":"s1"}
+{"t":0.000032,"ev":"reaction","n":2,"w":0,"sol":"s0","regle":"envoyer","in":[2],"in_sol":["s1"],"out":[]}
+{"t":0.000032,"ev":"injection","n":2,"sol":"s0","cible":"s1","out":[{"id":1029,"v":25}]}
+{"t":0.000038,"ev":"reaction","n":3,"w":0,"sol":"s1","regle":"max","in":[1029,5],"out":[{"id":2053,"v":25}]}
+{"t":0.000041,"ev":"inertie","sol":"s1"}
+{"t":0.000042,"ev":"reaction","n":4,"w":0,"sol":"s0","regle":"envoyer","in":[1],"in_sol":["s1"],"out":[]}
+{"t":0.000042,"ev":"injection","n":4,"sol":"s0","cible":"s1","out":[{"id":3077,"v":10}]}
+{"t":0.000046,"ev":"reaction","n":5,"w":0,"sol":"s1","regle":"max","in":[2053,3077],"out":[{"id":4101,"v":25}]}
+{"t":0.000048,"ev":"inertie","sol":"s1"}
+{"t":0.000049,"ev":"inertie","sol":"s0"}
+{"t":0.000049,"ev":"fin","reactions":5,"inerte":true,"motif":"inertie"}

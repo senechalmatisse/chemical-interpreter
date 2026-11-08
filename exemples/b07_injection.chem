@@ -1,0 +1,8 @@
+# B7 - Injection (jalon 3)
+# 'envoyer' produit chaque entier dans la sous-solution inerte, qui est
+# reactivee : son maximum final est 25.
+# attendu : { { 25 | max } | envoyer }
+
+let max     = replace x, y by x if x >= y ;
+let envoyer = replace x:int, s:sol by inject(x, s) ;
+{ 10, 25, { 4, 17 | max } | envoyer }

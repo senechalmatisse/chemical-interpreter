@@ -1,0 +1,13 @@
+[
+  {"fichier": "b09_crible_100.jsonl", "titre": "B9 - crible jusqu'a 100 (1 worker)", "attendu": "{ 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 | crible }"},
+  {"fichier": "b06_dissolution_w4.jsonl", "titre": "B6 - maximums puis dissolution (4 workers)", "attendu": "{ 21 | vider, max }"},
+  {"fichier": "b07_injection.jsonl", "titre": "B7 - injection et reactivation", "attendu": "{ { 25 | max } | envoyer }"},
+  {"fichier": "b08_max_min_w2.jsonl", "titre": "B8 - maximum et minimum en parallele (2 workers)", "attendu": "{ { 17 | max }, { 2 | min } }"},
+  {"fichier": "b05_tri.jsonl", "titre": "B5 - tri par echanges (n-uplets)", "attendu": "{ (0, 1), (1, 3), (2, 5), (3, 8) | echanger }"},
+  {"fichier": "b15_imbrication.jsonl", "titre": "B15 - trois niveaux de dissolution (2 workers)", "attendu": "{ 10 | vider, somme }"},
+  {"fichier": "b17_usage_unique.jsonl", "titre": "B17 - regles a usage unique (replace-one)", "attendu": "{ 15 }"},
+  {"fichier": "b18_sans_reactif.jsonl", "titre": "B18 - regle sans reactif dans une solution vide", "attendu": "{ 42 | somme }"},
+  {"fichier": "b19_injection_asynchrone_w2.jsonl", "titre": "B19 - injection asynchrone : crible au fil de l'eau (2 workers)", "attendu": "{ { 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97 | crible } | transmettre }"},
+  {"fichier": "b20_injection_bornee_w2.jsonl", "titre": "B20 - injections bornees : replace-one et s:ref (2 workers)", "attendu": "{ { 50 | max } }"},
+  {"fichier": "crible_1000_w4.jsonl", "titre": "Crible jusqu'a 1000 (4 workers, 831 reactions)", "attendu": "{ 2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127, 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211, 223, 227, 229, 233, 239, 241, 251, 257, 263, 269, 271, 277, 281, 283, 293, 307, 311, 313, 317, 331, 337, 347, 349, 353, 359, 367, 373, 379, 383, 389, 397, 401, 409, 419, 421, 431, 433, 439, 443, 449, 457, 461, 463, 467, 479, 487, 491, 499, 503, 509, 521, 523, 541, 547, 557, 563, 569, 571, 577, 587, 593, 599, 601, 607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673, 677, 683, 691, 701, 709, 719, 727, 733, 739, 743, 751, 757, 761, 769, 773, 787, 797, 809, 811, 821, 823, 827, 829, 839, 853, 857, 859, 863, 877, 881, 883, 887, 907, 911, 919, 929, 937, 941, 947, 953, 967, 971, 977, 983, 991, 997 | crible }"}
+]

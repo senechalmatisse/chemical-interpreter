@@ -1,0 +1,10 @@
+# B17 - Regles a usage unique (replace-one, EF-D5)
+# Avec 'replace', ces regles s'appliqueraient sans fin a leur propre
+# produit ; a usage unique, chaque activation s'applique une seule fois puis
+# disparait de la solution. 'ajouter_3' est activee deux fois : elle
+# s'applique deux fois. 5 + 3 + 3 + 4 = 15, quel que soit l'ordre.
+# attendu : { 15 }
+
+let ajouter_3 = replace-one x by x + 3 ;
+let ajouter_4 = replace-one x by x + 4 ;
+{ 5 | ajouter_3, ajouter_3, ajouter_4 }

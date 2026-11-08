@@ -1,0 +1,7 @@
+# B16 - Chaines et booleens (EF-L2 souhaitable) : la plus grande chaine
+# (ordre lexicographique) et conjonction de booleens.
+# attendu : { false, "rouge" | plus_grande, conjonction }
+
+let plus_grande = replace a:str, b:str by a if a >= b ;
+let conjonction = replace p:bool, q:bool by p and q ;
+{ "bleu", "rouge", "orange", true, false, true | plus_grande, conjonction }

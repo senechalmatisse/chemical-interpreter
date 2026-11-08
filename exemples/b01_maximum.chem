@@ -1,0 +1,7 @@
+# B1 - Maximum (EF-I1, recette jalon 1)
+# Deux molecules x et y sont remplacees par x si x >= y : il ne reste que le
+# maximum, en un seul exemplaire (les doublons du maximum reagissent aussi).
+# attendu : { 17 | max }
+
+let max = replace x, y by x if x >= y ;
+{ 4, 17, 9, 17, 2 | max }

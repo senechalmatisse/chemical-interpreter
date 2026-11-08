@@ -1,0 +1,38 @@
+[package]
+name = "chem"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "Interpreteur de programmes chimiques (formalisme Gamma)"
+publish = false
+
+[lib]
+name = "chem"
+path = "src/lib.rs"
+
+[[bin]]
+name = "chem"
+path = "src/main.rs"
+
+[[bench]]
+name = "moteur"
+harness = false
+
+# Aucune dependance externe : le moteur n'utilise que la bibliotheque standard.
+# Voir docs/architecture.md, section "Dependances et points d'integration",
+# pour brancher Rayon, Clap, Serde, Miette, Thiserror, Proptest et Criterion.
+[dependencies]
+
+[dev-dependencies]
+
+[profile.release]
+debug = "line-tables-only"
+
+[profile.bench]
+debug = "line-tables-only"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+needless_range_loop = "allow"

@@ -1,0 +1,8 @@
+# B6 - Sous-programmes en parallele puis dissolution (jalon 3)
+# Chaque sous-solution calcule son maximum ; inerte, elle est dissoute et
+# son contenu rejoint la solution principale, ou 'max' termine le calcul.
+# attendu : { 21 | vider, max }
+
+let max   = replace x, y by x if x >= y ;
+let vider = replace s:sol by dissolve(s) ;
+{ { 4, 17, 9 | max }, { 21, 3 | max }, { 8, 8, 2 | max } | vider, max }

@@ -1,0 +1,7 @@
+{"t":0,"ev":"debut","version":2,"graine":"4","strategie":"aleatoire","workers":1,"programme":"exemples/b17_usage_unique.chem"}
+{"t":0.00001,"ev":"init","sol":"s0","parent":null,"regles":["ajouter_3","ajouter_3","ajouter_4"],"mol":[{"id":1,"v":5}]}
+{"t":0.000021,"ev":"reaction","n":1,"w":0,"sol":"s0","regle":"ajouter_3","in":[1],"out":[{"id":2,"v":8}],"retiree":true}
+{"t":0.000023,"ev":"reaction","n":2,"w":0,"sol":"s0","regle":"ajouter_4","in":[2],"out":[{"id":3,"v":12}],"retiree":true}
+{"t":0.000023,"ev":"reaction","n":3,"w":0,"sol":"s0","regle":"ajouter_3","in":[3],"out":[{"id":4,"v":15}],"retiree":true}
+{"t":0.000036,"ev":"inertie","sol":"s0"}
+{"t":0.000037,"ev":"fin","reactions":3,"inerte":true,"motif":"inertie"}

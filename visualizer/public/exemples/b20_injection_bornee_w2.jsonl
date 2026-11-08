@@ -1,0 +1,14 @@
+{"t":0,"ev":"debut","version":2,"graine":"3","strategie":"aleatoire","workers":2,"programme":"exemples/b20_injection_bornee.chem"}
+{"t":0.000006,"ev":"init","sol":"s0","parent":null,"regles":["alimenter"],"mol":[]}
+{"t":0.000007,"ev":"init","sol":"s1","parent":"s0","regles":["max"],"mol":[{"id":1,"v":4},{"id":2,"v":17},{"id":3,"v":9}]}
+{"t":0.000062,"ev":"reaction","n":1,"w":0,"sol":"s1","regle":"max","in":[3,1],"out":[{"id":4,"v":9}]}
+{"t":0.000064,"ev":"reaction","n":2,"w":0,"sol":"s1","regle":"max","in":[2,4],"out":[{"id":5,"v":17}]}
+{"t":0.000075,"ev":"inertie","sol":"s1"}
+{"t":0.000141,"ev":"reaction","n":3,"w":1,"sol":"s0","regle":"alimenter","in":[],"out":[],"retiree":true}
+{"t":0.000141,"ev":"envoi","n":3,"sol":"s0","cible":"s1","out":[{"id":1028,"v":50},{"id":1029,"v":8}]}
+{"t":0.000194,"ev":"reception","sol":"s1","mol":[1028,1029]}
+{"t":0.000199,"ev":"reaction","n":4,"w":0,"sol":"s1","regle":"max","in":[5,1029],"out":[{"id":2052,"v":17}]}
+{"t":0.000199,"ev":"reaction","n":5,"w":0,"sol":"s1","regle":"max","in":[1028,2052],"out":[{"id":2053,"v":50}]}
+{"t":0.000206,"ev":"inertie","sol":"s1"}
+{"t":0.000207,"ev":"inertie","sol":"s0"}
+{"t":0.000208,"ev":"fin","reactions":5,"inerte":true,"motif":"inertie"}

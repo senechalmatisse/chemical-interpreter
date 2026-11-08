@@ -1,0 +1,6 @@
+# B4 - PGCD par soustractions successives (entiers strictement positifs)
+# attendu : { 6 | soustraire, fusionner }
+
+let soustraire = replace x, y by x - y, y if x > y ;
+let fusionner  = replace x, y by x if x == y ;
+{ 12, 18, 30 | soustraire, fusionner }
