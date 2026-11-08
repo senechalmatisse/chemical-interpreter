@@ -9,12 +9,24 @@ cd engine
 cargo build --release          # binaire : engine/target/release/chem
 cargo test
 
+cd ../integrations             # facultatif : la même commande avec Rayon, Clap, Serde et Miette
+cargo build --release          # binaire : integrations/target/release/chem
+
 cd ../visualizer
 npm install                    # crée package-lock.json au premier passage
 npm run typecheck && npm test && npm run build
 ```
 
-Le moteur n'a **aucune dépendance externe** : il se construit hors ligne (voir `docs/architecture.md` pour l'intégration prévue de Rayon, Clap, Serde, Miette…).
+Le moteur n'a **aucune dépendance externe** : il se construit hors ligne. Le paquet `integrations/` construit la même commande `chem`, avec les mêmes options et les mêmes résultats, en s'appuyant sur Rayon (pool de workers à vol de tâches), Clap (analyse des arguments), Serde (trace JSON Lines) et Miette (rendu graphique des erreurs) ; il télécharge ses dépendances au premier `cargo build`. Chaque bibliothèque est une fonctionnalité Cargo que l'on peut désactiver (`--no-default-features --features rayon,miette`) ; `chem --version` indique l'implémentation utilisée pour chaque point d'intégration (détails : `docs/architecture.md`, section 5).
+
+```console
+$ chem --version
+chem 0.1.0
+  arguments    : clap
+  diagnostics  : miette
+  trace        : serde_json
+  parallelisme : rayon
+```
 
 ## Commandes
 
@@ -45,7 +57,9 @@ chem <commande> [options]
 | `--trace` | affiche la solution après chaque étape |
 | `--trace-jsonl FICHIER` | écrit la trace JSON Lines (`-` : sortie standard) |
 | `--pas-a-pas` | exécution interactive : Entrée = étape suivante, `c` = continuer, `q` = arrêter (force 1 worker) |
-| `--stats` | statistiques : réactions par règle et par worker, tailles, passes, durée ; molécules envoyées et reçues (injection asynchrone) et règles à usage unique retirées, si le programme en a |
+| `--stats` | statistiques : réactions par règle et par worker, tailles, passes, durée ; molécules envoyées et reçues (injection asynchrone) et règles à usage unique retirées, si le programme en a ; recherches de partenaires par valeur (conditions d'égalité) ; phases réparties d'après une jointure, phases terminées sans fusion et segments de chaîne |
+| `--sans-index` | désactive l'index par valeur des conditions d'égalité entre réactifs (comparaison, diagnostic) : seul l'ordre d'essai des partenaires change, les résultats possibles restent les mêmes ; un programme confluent donne exactement le même résultat |
+| `--sans-partition` | désactive la répartition des lots guidée par les jointures (par clé pour `x == y` ou `k == l`, par segments pour une chaîne comme `b == c`) : distribution circulaire, comme les autres règles ; même remarque sur les résultats |
 
 La solution finale s'affiche sous forme **canonique** (valeurs triées, sous-solutions triées, puis règles) : deux exécutions de même résultat affichent le même texte.
 
@@ -99,9 +113,36 @@ etape 4 : max dans s1 (worker 0) : 50, 17 -> 50
 
 ## Visualiseur web
 
-1. Produire une trace : `chem run prog.chem --workers 4 --trace-jsonl trace.jsonl`.
-2. Construire le visualiseur une fois : `cd visualizer && npm install && npm run build`.
-3. Lancer `chem viz trace.jsonl` depuis la racine du dépôt (option `--dist` sinon) : un serveur local sert le visualiseur et la trace, et le navigateur s'ouvre.
+1. Produire une trace :
+   ```sh
+   chem run prog.chem --workers 4 --trace-jsonl trace.jsonl
+   ```
+
+2. Construire le visualiseur une fois :
+   ```sh
+   cd visualizer
+   npm install
+   npm run typecheck && npm test && npm run build
+   ```
+
+3. Lancer le visualiseur depuis le répertoire `visualizer` :
+   ```sh
+   chem viz public/exemples/b06_dissolution_w4.jsonl --dist dist
+   ```
+
+L'option `--dist dist` indique explicitement au moteur où trouver les fichiers compilés du visualiseur. Elle est nécessaire lorsque le chemin par défaut `visualizer/dist` ne correspond pas au répertoire courant.
+
+   Pour visualiser une autre trace :
+   ```sh
+   chem viz ../trace.jsonl --dist dist
+   ```
+
+On peut également lancer la commande depuis la racine du dépôt, en adaptant les chemins :
+   ```sh
+   chem viz trace.jsonl --dist visualizer/dist
+   ```
+
+Un serveur local sert le visualiseur et la trace, puis ouvre le navigateur.
 
 On peut aussi lancer `npm run dev` et charger une trace par le bouton « Ouvrir une trace… », par glisser-déposer, ou choisir une des démonstrations fournies (crible jusqu'à 100, B6 avec 4 workers, règles à usage unique, crible alimenté par injection asynchrone…).
 
@@ -123,8 +164,16 @@ Les scripts de `scripts/` suivent la norme de nommage `<aaaafddnn.sh>` (applicat
 
 | Script | Rôle |
 |---|---|
-| `chemxte01.sh` | chaîne de qualité complète : rustfmt, clippy, tests Rust, tests et vérification de types du visualiseur |
+| `chemxte01.sh` | chaîne de qualité complète : rustfmt, clippy, tests du moteur, du paquet `integrations` (si ses dépendances sont disponibles) et du visualiseur, vérification de types |
 | `chemxte02.sh [N] [workers]` | N exécutions répétées (défaut 100) des programmes à sous-solutions, dissolution, injection synchrone et asynchrone, règles à usage unique, avec vérification des résultats et des traces |
 | `chemxpe01.sh [fichier]` | mesures de performance (bancs du moteur) et rapport Markdown |
 | `chemxvi01.sh` | régénère les traces de démonstration du visualiseur |
+| `chemxvi02.sh` | rejoue les traces de démonstration et compare leur solution finale au résultat attendu de l'index |
+| `chemxpe02.sh` | mesure le pool Rayon face au pool standard (paquet `integrations`, 4 cœurs au moins) |
 | `chemxte03.sh` | rapport de couverture (nécessite `cargo-llvm-cov`) |
+
+La variable d'environnement `CHEM_BINAIRE` choisit l'exécutable des scripts `chemxte02.sh`, `chemxvi01.sh` et `chemxvi02.sh` : `CHEM_BINAIRE=integrations/target/release/chem scripts/chemxte02.sh` rejoue les tests de concurrence avec Rayon.
+
+## Intégration continue
+
+Les workflows GitHub Actions de `.github/workflows/` reprennent ces scripts à chaque poussée et à chaque demande de fusion : voir `docs/integration-continue.md`.

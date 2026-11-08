@@ -1,0 +1,35 @@
+# Conventions : le titre d'une demande de fusion suit Conventional Commits
+# (feat, fix, docs, perf, refactor, test, build, ci, chore, revert, style),
+# comme l'historique du depot. Le titre devient le message du commit lors
+# d'une fusion par squash.
+name: Conventions
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  titre:
+    name: Titre de la demande de fusion
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Format Conventional Commits
+        env:
+          V_C_Titre: ${{ github.event.pull_request.title }}
+        run: |
+          V_C_Motif='^(feat|fix|docs|perf|refactor|test|build|ci|chore|revert|style)(\([a-z0-9-]+\))?!?: [^ ].*'
+          if printf '%s' "${V_C_Titre}" | grep -Eq "${V_C_Motif}"
+          then
+            echo "Titre conforme : ${V_C_Titre}"
+            exit 0
+          fi
+          echo "::error::Titre non conforme : '${V_C_Titre}'"
+          echo "Format attendu : type(portee): description, par exemple"
+          echo "  feat(moteur): indexation des molecules par valeur"
+          echo "  fix(visualiseur): legende des solutions imbriquees"
+          echo "Types : feat, fix, docs, perf, refactor, test, build, ci, chore, revert, style"
+          exit 1

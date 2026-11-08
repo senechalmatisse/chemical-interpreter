@@ -1,0 +1,61 @@
+# Couverture des tests du moteur (cargo-llvm-cov, comme scripts/chemxte03.sh) :
+# resume dans le recapitulatif du job, rapport HTML et fichier LCOV en artefact.
+name: Couverture
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - engine/**
+      - .github/workflows/couverture.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: couverture-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  couverture:
+    name: Couverture du moteur
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rust
+        with:
+          composants: llvm-tools-preview
+          cle-cache: couverture
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-llvm-cov
+      - name: Mesure
+        run: cargo llvm-cov --locked --lcov --output-path "${RUNNER_TEMP}/moteur.lcov"
+      - name: Rapports
+        run: |
+          cargo llvm-cov report --html --output-dir "${RUNNER_TEMP}/couverture"
+          {
+            echo "## Couverture des tests du moteur"
+            echo ""
+            echo '```'
+            cargo llvm-cov report --summary-only
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: couverture-moteur
+          path: |
+            ${{ runner.temp }}/couverture
+            ${{ runner.temp }}/moteur.lcov
+          retention-days: 14

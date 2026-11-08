@@ -1,21 +1,73 @@
 //! Interface en ligne de commande.
 //!
-//! `principal` analyse les arguments, la fabrique ([`fabriquer`], patron
-//! Fabrique) construit l'objet [`Commande`] correspondant, puis la commande
-//! s'execute avec des entrees-sorties injectees. Codes de retour :
-//! 0 succes, 1 erreur de syntaxe ou de semantique (ou d'utilisation),
-//! 2 erreur d'execution, 3 garde-fou atteint.
+//! `principal` analyse les arguments, [`fabriquer`] construit l'objet
+//! [`Commande`] correspondant, puis la commande s'execute avec des
+//! entrees-sorties injectees. Codes de retour : 0 succes, 1 erreur de
+//! syntaxe ou de semantique (ou d'utilisation), 2 erreur d'execution,
+//! 3 garde-fou atteint.
+//!
+//! Les implementations des points d'integration (analyse des arguments,
+//! rendu des diagnostics, format de trace, pool de workers) sont reunies
+//! dans [`Composants`] : [`Composants::standard`] n'utilise que la
+//! bibliotheque standard, le paquet `integrations` fournit Clap, Miette,
+//! Serde et Rayon avec la meme ligne de commande.
 
 pub mod arguments;
 pub mod commandes;
 pub mod serveur;
 
-use crate::ordonnanceur::{Configuration, MAX_MOLECULES_DEFAUT, Strategie};
-use arguments::{DefinitionCommande, DefinitionOption, aide, analyser};
+use crate::diagnostic::{RenduDiagnostic, RenduTexte};
+use crate::ordonnanceur::{
+    Configuration, FabriqueParallelisme, MAX_MOLECULES_DEFAUT, ParallelismeStandard, Strategie,
+};
+use crate::trace::{FormatInterne, FormatTrace};
+use arguments::{AnalyseurArguments, AnalyseurInterne, DefinitionCommande, DefinitionOption, aide};
 use commandes::*;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, PoisonError};
+
+/// Implementations utilisees par la ligne de commande.
+#[derive(Clone)]
+pub struct Composants {
+    /// Analyse des arguments des sous-commandes.
+    pub arguments: Arc<dyn AnalyseurArguments>,
+    /// Rendu des erreurs et avertissements.
+    pub diagnostics: Arc<dyn RenduDiagnostic>,
+    /// Ecriture et lecture des traces JSON Lines.
+    pub trace: Arc<dyn FormatTrace>,
+    /// Pool de workers des executions.
+    pub parallelisme: Arc<dyn FabriqueParallelisme>,
+}
+
+impl Composants {
+    /// Implementations de la bibliotheque, sans dependance externe.
+    pub fn standard() -> Self {
+        Self {
+            arguments: Arc::new(AnalyseurInterne),
+            diagnostics: Arc::new(RenduTexte),
+            trace: Arc::new(FormatInterne),
+            parallelisme: Arc::new(ParallelismeStandard),
+        }
+    }
+
+    /// Une ligne par point d'integration (affichee par `chem --version`).
+    pub fn description(&self) -> String {
+        format!(
+            "  arguments    : {}\n  diagnostics  : {}\n  trace        : {}\n  parallelisme : {}\n",
+            self.arguments.nom(),
+            self.diagnostics.nom(),
+            self.trace.nom(),
+            self.parallelisme.nom()
+        )
+    }
+}
+
+impl Default for Composants {
+    fn default() -> Self {
+        Self::standard()
+    }
+}
 
 /// Codes de retour du processus.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,6 +208,16 @@ pub const RUN: DefinitionCommande = DefinitionCommande {
             None,
             "affiche les statistiques sur la sortie d'erreur",
         ),
+        opt(
+            "sans-index",
+            None,
+            "desactive la recherche des partenaires par valeur (conditions d'egalite)",
+        ),
+        opt(
+            "sans-partition",
+            None,
+            "desactive la repartition des lots guidee par les jointures (cles, chaines)",
+        ),
     ],
     resume: "Execute un programme chimique jusqu'a l'inertie et affiche la solution finale.",
 };
@@ -212,7 +274,8 @@ pub const VIZ: DefinitionCommande = DefinitionCommande {
     resume: "Ouvre le visualiseur web sur une trace.",
 };
 
-const COMMANDES: [&DefinitionCommande; 5] = [&RUN, &CHECK, &FMT, &REPLAY, &VIZ];
+/// Sous-commandes, dans l'ordre de l'aide generale.
+pub const COMMANDES: [&DefinitionCommande; 5] = [&RUN, &CHECK, &FMT, &REPLAY, &VIZ];
 
 /// Aide generale.
 pub fn aide_generale() -> String {
@@ -253,14 +316,18 @@ fn configuration(a: &arguments::Arguments) -> Result<Configuration, String> {
         .max_etapes(a.entier("max-etapes")?)
         .delai_max(a.duree("delai-max")?)
         .max_molecules(max_molecules)
+        .indexation(!a.drapeau("sans-index"))
+        .partition(!a.drapeau("sans-partition"))
         .construire())
 }
 
 fn construire(
     definition: &DefinitionCommande,
     a: arguments::Arguments,
+    composants: &Composants,
 ) -> Result<Box<dyn Commande>, String> {
     let premier = || PathBuf::from(&a.positionnels[0]);
+    let composants = composants.clone();
     Ok(match definition.nom {
         "run" => Box::new(CommandeRun {
             fichier: premier(),
@@ -269,12 +336,20 @@ fn construire(
             trace_jsonl: a.valeur("trace-jsonl").map(str::to_string),
             pas_a_pas: a.drapeau("pas-a-pas"),
             statistiques: a.drapeau("stats"),
+            composants,
         }),
-        "check" => Box::new(CommandeCheck { fichier: premier() }),
-        "fmt" => Box::new(CommandeFmt { fichier: premier() }),
+        "check" => Box::new(CommandeCheck {
+            fichier: premier(),
+            composants,
+        }),
+        "fmt" => Box::new(CommandeFmt {
+            fichier: premier(),
+            composants,
+        }),
         "replay" => Box::new(CommandeReplay {
             trace: premier(),
             programme: a.valeur("programme").map(PathBuf::from),
+            composants,
         }),
         "viz" => Box::new(CommandeViz {
             trace: premier(),
@@ -293,8 +368,15 @@ fn construire(
     })
 }
 
-/// Fabrique : arguments (sans le nom du programme) -> commande.
+/// Arguments (sans le nom du programme) -> commande, avec les
+/// implementations standard.
 pub fn fabriquer(arguments: &[String]) -> Box<dyn Commande> {
+    fabriquer_avec(arguments, &Composants::standard())
+}
+
+/// Arguments (sans le nom du programme) -> commande, avec les
+/// implementations donnees.
+pub fn fabriquer_avec(arguments: &[String], composants: &Composants) -> Box<dyn Commande> {
     let erreur = |message: String| -> Box<dyn Commande> { Box::new(CommandeErreur { message }) };
     let Some(nom) = arguments.first() else {
         return Box::new(CommandeTexte {
@@ -309,7 +391,11 @@ pub fn fabriquer(arguments: &[String]) -> Box<dyn Commande> {
         }
         "-V" | "--version" => {
             return Box::new(CommandeTexte {
-                texte: format!("chem {}\n", env!("CARGO_PKG_VERSION")),
+                texte: format!(
+                    "chem {}\n{}",
+                    env!("CARGO_PKG_VERSION"),
+                    composants.description()
+                ),
             });
         }
         _ => {}
@@ -321,18 +407,27 @@ pub fn fabriquer(arguments: &[String]) -> Box<dyn Commande> {
         }
         return erreur(message);
     };
-    match analyser(definition, &arguments[1..]) {
+    match composants.arguments.analyser(definition, &arguments[1..]) {
         Ok(a) if a.aide => Box::new(CommandeTexte {
             texte: aide(definition),
         }),
-        Ok(a) => construire(definition, a).unwrap_or_else(erreur),
+        Ok(a) => construire(definition, a, composants).unwrap_or_else(erreur),
         Err(message) => erreur(message),
     }
 }
 
 /// Point d'entree testable : retourne le code de sortie.
 pub fn principal(arguments: &[String], es: &mut EntreesSorties) -> i32 {
-    let code = fabriquer(arguments).executer(es);
+    principal_avec(arguments, es, &Composants::standard())
+}
+
+/// Point d'entree avec des implementations choisies (paquet `integrations`).
+pub fn principal_avec(
+    arguments: &[String],
+    es: &mut EntreesSorties,
+    composants: &Composants,
+) -> i32 {
+    let code = fabriquer_avec(arguments, composants).executer(es);
     let _ = es.sortie.flush();
     let _ = es.erreurs.flush();
     code as i32
@@ -361,7 +456,13 @@ mod tests {
         let (code, sortie, _) = lancer(&[]);
         assert_eq!(code, 0);
         assert!(sortie.contains("Commandes"));
-        assert_eq!(lancer(&["--version"]).0, 0);
+        let (code, sortie, _) = lancer(&["--version"]);
+        assert_eq!(code, 0);
+        assert!(sortie.contains("arguments    : interne"), "{sortie}");
+        assert!(
+            sortie.contains("parallelisme : bibliotheque standard"),
+            "{sortie}"
+        );
         let (code, sortie, _) = lancer(&["run", "--help"]);
         assert_eq!(code, 0);
         assert!(sortie.contains("--max-etapes <N>"));

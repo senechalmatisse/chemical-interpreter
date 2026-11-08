@@ -1,10 +1,11 @@
 //! Observateur ecrivant la trace au format JSON Lines.
 
+use super::format::{FormatInterne, FormatTrace};
 use super::{Evenement, Observateur};
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::Path;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// Ecrit un evenement par ligne dans un flux.
 ///
@@ -13,6 +14,7 @@ use std::sync::{Mutex, PoisonError};
 pub struct TraceJsonl {
     sortie: Mutex<Box<dyn Write + Send>>,
     erreur: Mutex<Option<io::Error>>,
+    format: Arc<dyn FormatTrace>,
 }
 
 impl TraceJsonl {
@@ -21,7 +23,14 @@ impl TraceJsonl {
         Self {
             sortie: Mutex::new(sortie),
             erreur: Mutex::new(None),
+            format: Arc::new(FormatInterne),
         }
+    }
+
+    /// Mise en oeuvre du format (par defaut : [`FormatInterne`]).
+    pub fn avec_format(mut self, format: Arc<dyn FormatTrace>) -> Self {
+        self.format = format;
+        self
     }
 
     /// Trace vers un fichier (cree ou tronque).
@@ -49,16 +58,18 @@ impl Observateur for TraceJsonl {
     }
 
     fn notifier_lot(&self, evenements: &[Evenement]) {
-        let mut texte = String::with_capacity(evenements.len() * 96);
+        let mut texte = Vec::with_capacity(evenements.len() * 96);
         for e in evenements {
-            e.vers_json().ecrire(&mut texte);
-            texte.push('\n');
+            if let Err(erreur) = self.format.ecrire(e, &mut texte) {
+                self.memoriser(Err(erreur));
+                return;
+            }
         }
         let resultat = self
             .sortie
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .write_all(texte.as_bytes());
+            .write_all(&texte);
         self.memoriser(resultat);
     }
 

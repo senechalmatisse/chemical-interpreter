@@ -75,6 +75,8 @@ pub struct Configuration {
     strategie: Strategie,
     graine: u64,
     limites: Limites,
+    indexation: bool,
+    partition: bool,
 }
 
 impl Default for Configuration {
@@ -108,6 +110,17 @@ impl Configuration {
     pub fn limites(&self) -> &Limites {
         &self.limites
     }
+
+    /// Recherche des partenaires par valeur pour les egalites (defaut : oui).
+    pub fn indexation(&self) -> bool {
+        self.indexation
+    }
+
+    /// Repartition des lots guidee par les jointures : par cle, et par
+    /// segments pour une chaine (defaut : oui).
+    pub fn partition(&self) -> bool {
+        self.partition
+    }
 }
 
 /// Monteur de [`Configuration`] : valeurs par defaut sures, validation au
@@ -118,6 +131,8 @@ pub struct ConstructeurConfiguration {
     strategie: Strategie,
     graine: Option<u64>,
     limites: Limites,
+    sans_index: bool,
+    sans_partition: bool,
 }
 
 impl ConstructeurConfiguration {
@@ -163,6 +178,20 @@ impl ConstructeurConfiguration {
         self
     }
 
+    /// Indexation des molecules par valeur pour les conditions d'egalite
+    /// (desactivable pour comparer ou mesurer).
+    pub fn indexation(mut self, active: bool) -> Self {
+        self.sans_index = !active;
+        self
+    }
+
+    /// Repartition des lots guidee par les jointures (desactivable pour
+    /// comparer ou mesurer).
+    pub fn partition(mut self, active: bool) -> Self {
+        self.sans_partition = !active;
+        self
+    }
+
     /// Construit la configuration.
     pub fn construire(self) -> Configuration {
         let graine = self.graine.unwrap_or(match self.strategie {
@@ -174,6 +203,8 @@ impl ConstructeurConfiguration {
             strategie: self.strategie,
             graine,
             limites: self.limites,
+            indexation: !self.sans_index,
+            partition: !self.sans_partition,
         }
     }
 }
@@ -193,6 +224,19 @@ mod tests {
         assert_eq!(c.graine(), 0);
         assert_eq!(c.limites().max_etapes, Some(10));
         assert_eq!(c.limites().max_molecules, Some(MAX_MOLECULES_DEFAUT));
+        assert!(c.indexation() && c.partition());
+        assert!(
+            !Configuration::constructeur()
+                .partition(false)
+                .construire()
+                .partition()
+        );
+        assert!(
+            !Configuration::constructeur()
+                .indexation(false)
+                .construire()
+                .indexation()
+        );
         assert_eq!(Strategie::depuis_nom("ordonnee"), Some(Strategie::Ordonnee));
         assert_eq!(Strategie::depuis_nom("x"), None);
     }

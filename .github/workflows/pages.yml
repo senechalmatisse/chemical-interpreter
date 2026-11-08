@@ -1,0 +1,62 @@
+# Visualiseur en ligne : le visualiseur construit (avec ses traces de
+# demonstration) est publie sur GitHub Pages a chaque modification sur main.
+# A activer une fois : Settings > Pages > Source : GitHub Actions. Tant que
+# Pages n'est pas active, les poussees sautent ce workflow au lieu d'echouer.
+name: Visualiseur en ligne
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - visualizer/**
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  construction:
+    name: Construction
+    if: github.event.repository.has_pages || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: visualizer
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: visualizer/package-lock.json
+      - name: Dependances
+        run: npm ci
+      - name: Construction
+        run: npm run build
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: visualizer/dist
+
+  deploiement:
+    name: Deploiement
+    needs: construction
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploiement.outputs.page_url }}
+    steps:
+      - id: deploiement
+        uses: actions/deploy-pages@v4

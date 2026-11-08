@@ -1,0 +1,134 @@
+# Publication : une etiquette vX.Y.Z construit la commande chem (paquet
+# integrations : Clap, Miette, Serde, Rayon) pour Linux, macOS et Windows,
+# le visualiseur, et publie le tout dans une release GitHub avec les sommes
+# de controle. Lance a la main, le workflow construit les archives sans
+# publier (artefacts du run).
+name: Publication
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  binaires:
+    name: Binaire ${{ matrix.cible }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            cible: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            cible: aarch64-apple-darwin
+          - os: windows-latest
+            cible: x86_64-pc-windows-msvc
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rust
+        with:
+          cle-cache: publication
+      - name: Construction
+        working-directory: integrations
+        run: cargo build --release
+      - name: Archive
+        env:
+          V_C_Cible: ${{ matrix.cible }}
+          V_C_Version: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+        run: |
+          V_C_Nom="chem-${V_C_Version}-${V_C_Cible}"
+          V_C_Executable="chem"
+          if [ "${RUNNER_OS}" = "Windows" ]
+          then
+            V_C_Executable="chem.exe"
+          fi
+          mkdir -p "dist/${V_C_Nom}"
+          cp "integrations/target/release/${V_C_Executable}" "dist/${V_C_Nom}/"
+          cp -r exemples docs README.md LICENSE "dist/${V_C_Nom}/"
+          cd dist || exit 1
+          if [ "${RUNNER_OS}" = "Windows" ]
+          then
+            7z a -tzip "${V_C_Nom}.zip" "${V_C_Nom}" > /dev/null
+          else
+            tar -czf "${V_C_Nom}.tar.gz" "${V_C_Nom}"
+          fi
+          rm -rf "${V_C_Nom}"
+      - name: Verification de l'archive
+        run: |
+          ./integrations/target/release/chem --version
+          ./integrations/target/release/chem run exemples/b01_maximum.chem
+      - uses: actions/upload-artifact@v7
+        with:
+          name: binaire-${{ matrix.cible }}
+          path: dist/*
+          retention-days: 7
+
+  visualiseur:
+    name: Visualiseur
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: visualizer/package-lock.json
+      - name: Construction
+        working-directory: visualizer
+        run: |
+          npm ci
+          npm run build
+      - name: Archive
+        env:
+          V_C_Version: ${{ github.ref_type == 'tag' && github.ref_name || 'dev' }}
+        run: |
+          mkdir -p dist
+          ( cd visualizer && zip -qr "../dist/chem-visualiseur-${V_C_Version}.zip" dist )
+      - uses: actions/upload-artifact@v7
+        with:
+          name: visualiseur
+          path: dist/*
+          retention-days: 7
+
+  release:
+    name: Release GitHub
+    needs: [binaires, visualiseur]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Sommes de controle
+        working-directory: dist
+        run: sha256sum -- * > SHA256SUMS
+      - name: Publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V_C_Etiquette: ${{ github.ref_name }}
+        run: |
+          gh release create "${V_C_Etiquette}" dist/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "chem ${V_C_Etiquette}" \
+            --generate-notes \
+            --verify-tag

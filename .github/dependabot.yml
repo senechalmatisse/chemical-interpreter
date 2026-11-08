@@ -1,0 +1,44 @@
+# Mises a jour automatiques des dependances : une demande de fusion groupee
+# par ecosysteme et par semaine, titre au format Conventional Commits.
+# Le moteur (engine/) n'a aucune dependance et n'apparait donc pas ici.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/rust
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: cargo
+    directory: /integrations
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      integrations:
+        patterns: ["*"]
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /visualizer
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      visualiseur:
+        patterns: ["*"]
+        update-types: [minor, patch]

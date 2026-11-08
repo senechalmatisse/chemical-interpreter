@@ -8,11 +8,14 @@
 use crate::annulation::JetonAnnulation;
 use crate::ast::Programme;
 use crate::diagnostic::Diagnostics;
-use crate::ordonnanceur::{Configuration, Execution, Ordonnanceur};
+use crate::ordonnanceur::{
+    Configuration, Execution, FabriqueParallelisme, Ordonnanceur, ParallelismeStandard,
+};
 use crate::parser;
 use crate::semantique::{self, Analyseur, ProgrammeCompile};
 use crate::source::Source;
 use crate::trace::Diffuseur;
+use std::sync::Arc;
 
 /// Programme analyse et compile, pret a l'execution.
 #[derive(Debug)]
@@ -30,6 +33,7 @@ pub struct ProgrammeCharge {
 /// Facade de l'interpreteur.
 pub struct Interpreteur {
     analyseur: Analyseur,
+    parallelisme: Arc<dyn FabriqueParallelisme>,
 }
 
 impl Default for Interpreteur {
@@ -41,14 +45,21 @@ impl Default for Interpreteur {
 impl Interpreteur {
     /// Interpreteur avec les verifications standard.
     pub fn new() -> Self {
-        Self {
-            analyseur: Analyseur::standard(),
-        }
+        Self::avec_analyseur(Analyseur::standard())
     }
 
     /// Interpreteur avec une chaine de verifications personnalisee.
     pub fn avec_analyseur(analyseur: Analyseur) -> Self {
-        Self { analyseur }
+        Self {
+            analyseur,
+            parallelisme: Arc::new(ParallelismeStandard),
+        }
+    }
+
+    /// Implementation du pool de workers utilisee par les executions.
+    pub fn avec_parallelisme(mut self, fabrique: Arc<dyn FabriqueParallelisme>) -> Self {
+        self.parallelisme = fabrique;
+        self
     }
 
     /// Analyse syntaxique seule.
@@ -91,8 +102,9 @@ impl Interpreteur {
         diffuseur: &Diffuseur,
         annulation: Option<JetonAnnulation>,
     ) -> Execution {
-        let mut ordonnanceur =
-            Ordonnanceur::new(configuration, diffuseur).avec_programme(programme.nom);
+        let mut ordonnanceur = Ordonnanceur::new(configuration, diffuseur)
+            .avec_programme(programme.nom)
+            .avec_parallelisme(&*self.parallelisme);
         if let Some(jeton) = annulation {
             ordonnanceur = ordonnanceur.avec_annulation(jeton);
         }

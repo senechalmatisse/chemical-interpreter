@@ -35,28 +35,34 @@
 //! les activations utilisees sont retirees de la solution. Une regle sans
 //! reactif est tentee une fois par passe, meme dans une solution vide.
 //!
-//! La phase de reaction de `S` est elle-meme parallele : ses
-//! elements sont repartis en lots (au plus un par worker) qui reagissent
+//! La phase de reaction de `S` est elle-meme parallele : ses elements sont
+//! repartis en lots (au plus un par worker ; distribution circulaire, ou
+//! guidee par une jointure : par cle, et par segments pour une chaine, voir
+//! [`repartition`]) qui reagissent
 //! simultanement ; chaque lot possede ses molecules, la reservation des
 //! reactifs est donc atomique par construction. Une fois les lots
 //! localement inertes, ils sont fusionnes deux a deux et le traitement
 //! reprend, jusqu'a un lot unique dont la passe exhaustive finale garantit
-//! l'inertie. Chaque reaction d'un lot etant valide dans la solution
+//! l'inertie ; des lots independants (aucune reaction possible entre deux
+//! lots) s'arretent sans fusion. Chaque reaction d'un lot etant valide dans la solution
 //! entiere, toute execution parallele correspond a une execution
 //! sequentielle possible (EF-S5). Avec un seul worker, il n'y a qu'un lot et
 //! qu'un thread : c'est le mode sequentiel.
 
 mod configuration;
+mod parallelisme;
 mod pool;
+pub mod repartition;
 
 pub use configuration::{
     Configuration, ConstructeurConfiguration, Limites, MAX_MOLECULES_DEFAUT, Strategie,
 };
-pub use pool::Pool;
+pub use parallelisme::{Executeur, FabriqueParallelisme, Parallelisme, ParallelismeStandard};
+pub use pool::{PILE_WORKER, Pool};
 
 use crate::alea::Alea;
 use crate::annulation::JetonAnnulation;
-use crate::moteur::{Arret, Compteurs, ContexteExecution, GardeFous, Lot, Reacteur};
+use crate::moteur::{Arret, Compteurs, ContexteExecution, GardeFous, Lot, Reacteur, RegleCompilee};
 use crate::solution::{Element, GenerateurIds, IdSolution, Port, Solution};
 use crate::trace::{Diffuseur, Evenement};
 use std::fmt;
@@ -150,6 +156,20 @@ impl fmt::Display for Statistiques {
                 c.envois, c.receptions
             )?;
         }
+        if c.consultations_index > 0 {
+            writeln!(
+                f,
+                "  index          : {} recherche(s) de partenaires par valeur (egalites)",
+                c.consultations_index
+            )?;
+        }
+        if c.repartitions_par_cle > 0 {
+            writeln!(
+                f,
+                "  partition      : {} phase(s) repartie(s) par cle (jointures), {} sans fusion, {} segment(s) de chaine",
+                c.repartitions_par_cle, c.fusions_evitees, c.segments_de_chaine
+            )?;
+        }
         if c.regles_retirees > 0 {
             writeln!(
                 f,
@@ -200,6 +220,7 @@ pub struct Ordonnanceur<'a> {
     diffuseur: &'a Diffuseur,
     annulation: Option<JetonAnnulation>,
     programme: String,
+    parallelisme: &'a dyn FabriqueParallelisme,
 }
 
 impl<'a> Ordonnanceur<'a> {
@@ -210,7 +231,14 @@ impl<'a> Ordonnanceur<'a> {
             diffuseur,
             annulation: None,
             programme: String::new(),
+            parallelisme: &ParallelismeStandard,
         }
+    }
+
+    /// Implementation du pool de workers (par defaut : bibliotheque standard).
+    pub fn avec_parallelisme(mut self, fabrique: &'a dyn FabriqueParallelisme) -> Self {
+        self.parallelisme = fabrique;
+        self
     }
 
     /// Jeton permettant d'interrompre l'execution.
@@ -246,14 +274,17 @@ impl<'a> Ordonnanceur<'a> {
             self.diffuseur,
             config.strategie() == Strategie::Aleatoire,
             horloge,
-        );
+        )
+        .avec_indexation(config.indexation())
+        .avec_partition(config.partition());
         if self.diffuseur.est_actif() {
             self.publier_debut(&solution, &ctx);
         }
-        let pool = Pool::new(config.workers());
+        let parallelisme = self.parallelisme.creer(config.workers());
+        let pool = Executeur::new(&*parallelisme);
         let moteur = Moteur {
             ctx: &ctx,
-            pool: &pool,
+            pool,
             graine: config.graine(),
             workers: config.workers(),
         };
@@ -342,7 +373,7 @@ fn repartir(budget: usize, enfants: usize, phase_utile: bool) -> (usize, usize) 
 /// Pilote recursif d'une execution (interne).
 struct Moteur<'c, 'a> {
     ctx: &'c ContexteExecution<'a>,
-    pool: &'c Pool,
+    pool: Executeur<'c>,
     graine: u64,
     workers: usize,
 }
@@ -455,7 +486,7 @@ impl Moteur<'_, '_> {
         let id = solution.id();
         let boite = Arc::clone(&solution.boite);
         let elements = std::mem::take(&mut solution.elements);
-        let mut lots = self.partitionner(elements, id, tour, budget);
+        let (mut lots, independants) = self.partitionner(elements, id, tour, budget, &regles);
         let reacteur = Reacteur::new(self.ctx, id, &regles)
             .avec_ports(ports)
             .avec_boite(&boite);
@@ -464,7 +495,7 @@ impl Moteur<'_, '_> {
         let mut niveau = 0;
         loop {
             let resultats = self.pool.pour_chaque_mut(&mut lots, &|lot: &mut Lot| {
-                reacteur.reagir(lot, Pool::indice_courant())
+                reacteur.reagir(lot, self.pool.indice_courant())
             });
             for resultat in resultats {
                 match resultat {
@@ -475,6 +506,17 @@ impl Moteur<'_, '_> {
                 }
             }
             if premiere_erreur.is_some() || lots.len() <= 1 {
+                break;
+            }
+            // Lots independants (une cle par lot, seule regle, jointure
+            // locale, ni usage unique ni reference) : des lots inertes
+            // forment une solution inerte, sauf si du courrier a pu arriver
+            // dans un lot quelconque.
+            if niveau == 0 && independants && !lots.iter().any(|lot| lot.courrier_recu) {
+                self.ctx.ajouter_compteurs(&Compteurs {
+                    fusions_evitees: 1,
+                    ..Compteurs::default()
+                });
                 break;
             }
             niveau += 1;
@@ -506,32 +548,92 @@ impl Moteur<'_, '_> {
         }
     }
 
+    /// Lots de la phase, et vrai s'ils sont independants : repartis par
+    /// cle sans separer aucune cle, pour la seule regle de la solution,
+    /// dont la jointure est locale, sans usage unique ni reference (voir
+    /// [`repartition`]).
     fn partitionner(
         &self,
-        mut elements: Vec<crate::solution::Element>,
+        mut elements: Vec<Element>,
         id: IdSolution,
         tour: u64,
         budget: usize,
-    ) -> Vec<Lot> {
+        regles: &[Arc<RegleCompilee>],
+    ) -> (Vec<Lot>, bool) {
         let nombre = self.nombre_lots(elements.len(), budget);
         if nombre <= 1 {
-            return vec![Lot::new(elements, self.graine_lot(id, tour, 0, 0))];
+            return (
+                vec![Lot::new(elements, self.graine_lot(id, tour, 0, 0))],
+                false,
+            );
         }
         if self.ctx.melanger {
             Alea::new(self.graine_lot(id, tour, 0, u64::MAX)).melanger(&mut elements);
         }
-        // Distribution circulaire : equilibre la charge meme quand le source
-        // est trie (intervalles) en strategie ordonnee.
+        // Guidee par une jointure si une regle en a une, sinon distribution
+        // circulaire (equilibree meme quand les elements arrivent tries).
+        let par_cle = self
+            .ctx
+            .partition
+            .then(|| repartition::regle_de_partition(regles))
+            .flatten();
+        let (destinations, independants) = match par_cle {
+            Some(regle) => {
+                self.ctx.ajouter_compteurs(&Compteurs {
+                    repartitions_par_cle: 1,
+                    ..Compteurs::default()
+                });
+                // Les roles (cles) sont calcules en parallele, une tranche
+                // par lot ; `repartir` calcule les successeurs des maillons
+                // et les segments de chaine, en parallele pour les longues
+                // chaines.
+                let mut tranches: Vec<&[Element]> =
+                    elements.chunks(elements.len().div_ceil(nombre)).collect();
+                let roles: Vec<repartition::Role> = self
+                    .pool
+                    .pour_chaque_mut(&mut tranches, &|tranche: &mut &[Element]| {
+                        repartition::roles(tranche, regle)
+                    })
+                    .into_iter()
+                    .flatten()
+                    .collect();
+                let repartition = repartition::repartir(
+                    &roles,
+                    nombre,
+                    self.graine_lot(id, tour, 0, u64::MAX - 1),
+                    self.pool,
+                );
+                if repartition.segments > 0 {
+                    self.ctx.ajouter_compteurs(&Compteurs {
+                        segments_de_chaine: repartition.segments as u64,
+                        ..Compteurs::default()
+                    });
+                }
+                // Pas de lots independants pour une regle a usage unique ou a
+                // references : deux lots concurrents peuvent y manquer
+                // transitoirement une reaction, que la fusion rattrape.
+                let seule_regle = regles.iter().all(|r| std::ptr::eq(&**r, regle));
+                let locale = regle.jointure.as_ref().is_some_and(|j| j.locale)
+                    && !regle.unique
+                    && regle.references == 0;
+                (
+                    repartition.destinations,
+                    repartition.cles_separees && seule_regle && locale,
+                )
+            }
+            None => (repartition::circulaire(elements.len(), nombre), false),
+        };
         let taille = elements.len().div_ceil(nombre);
         let mut morceaux: Vec<Vec<_>> = (0..nombre).map(|_| Vec::with_capacity(taille)).collect();
-        for (k, e) in elements.into_iter().enumerate() {
-            morceaux[k % nombre].push(e);
+        for (e, lot) in elements.into_iter().zip(destinations) {
+            morceaux[lot].push(e);
         }
-        morceaux
+        let lots = morceaux
             .into_iter()
             .enumerate()
             .map(|(index, morceau)| Lot::new(morceau, self.graine_lot(id, tour, 0, index as u64)))
-            .collect()
+            .collect();
+        (lots, independants)
     }
 
     fn fusionner(&self, lots: Vec<Lot>, id: IdSolution, tour: u64, niveau: u64) -> Vec<Lot> {

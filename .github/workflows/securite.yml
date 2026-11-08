@@ -1,0 +1,101 @@
+# Securite : vulnerabilites connues des dependances (RustSec, npm), analyse
+# statique CodeQL (Rust, TypeScript, workflows) et revue des dependances
+# ajoutees par une demande de fusion. Relance chaque lundi : une faille peut
+# etre publiee sans que le code change.
+name: Securite
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: securite-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  audit-rust:
+    name: Audit des dependances Rust (RustSec)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rust
+        with:
+          cle-cache: audit
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: Moteur
+        working-directory: engine
+        run: cargo audit
+      - name: Paquet integrations
+        working-directory: integrations
+        run: |
+          if [ ! -f Cargo.lock ]
+          then
+            cargo generate-lockfile
+          fi
+          cargo audit
+
+  audit-npm:
+    name: Audit des dependances du visualiseur (npm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: visualizer
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  codeql:
+    name: CodeQL (${{ matrix.langage }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        langage: [rust, javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.langage }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.langage }}
+
+  revue-dependances:
+    name: Revue des dependances ajoutees
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high

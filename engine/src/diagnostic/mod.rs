@@ -1,19 +1,42 @@
 //! Diagnostics localises (erreurs et avertissements).
 //!
 //! Un [`Diagnostic`] porte un code stable (`E0201`, `W0302`...), un message,
-//! des etiquettes pointant dans le source et une aide facultative. Le rendu
-//! textuel (extrait de source souligne) est assure par [`rendre`].
+//! des etiquettes pointant dans le source et une aide facultative.
 //!
-//! Point d'integration : ce module joue le role de Miette. Pour passer a
-//! Miette, il suffit d'implementer `miette::Diagnostic` pour [`Diagnostic`]
-//! (code, labels, help) et de remplacer [`rendre`] par le rapport graphique.
+//! Le rendu pour la sortie d'erreur passe par l'interface
+//! [`RenduDiagnostic`] : [`RenduTexte`] (extrait de source souligne, voir
+//! [`rendre`]) est le rendu de la bibliotheque ; le paquet `integrations`
+//! en fournit un avec Miette.
 
 mod rendu;
 
 pub use rendu::rendre;
 
-use crate::source::Span;
+use crate::source::{Source, Span};
 use std::fmt;
+
+/// Mise en forme d'un diagnostic pour la sortie d'erreur.
+pub trait RenduDiagnostic: Send + Sync {
+    /// Nom de l'implementation (affiche par `chem --version`).
+    fn nom(&self) -> &'static str;
+
+    /// Texte complet du diagnostic, termine par un saut de ligne.
+    fn rendre(&self, diagnostic: &Diagnostic, source: &Source) -> String;
+}
+
+/// Rendu texte de la bibliotheque.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct RenduTexte;
+
+impl RenduDiagnostic for RenduTexte {
+    fn nom(&self) -> &'static str {
+        "interne"
+    }
+
+    fn rendre(&self, diagnostic: &Diagnostic, source: &Source) -> String {
+        rendre(diagnostic, source)
+    }
+}
 
 /// Gravite d'un diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

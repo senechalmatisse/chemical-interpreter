@@ -18,6 +18,9 @@ pub struct Lot {
     pub(crate) reactivees: Vec<Box<Solution>>,
     /// Graine propre au lot (strategie aleatoire).
     pub(crate) graine: u64,
+    /// Vrai si le lot a releve du courrier (injection asynchrone) : ces
+    /// molecules ont pu arriver dans n'importe quel lot.
+    pub(crate) courrier_recu: bool,
 }
 
 impl Lot {
@@ -27,6 +30,7 @@ impl Lot {
             elements: elements.into_iter().map(Some).collect(),
             reactivees: Vec::new(),
             graine,
+            courrier_recu: false,
         }
     }
 
@@ -45,6 +49,7 @@ impl Lot {
         self.elements
             .extend(autre.elements.into_iter().filter(Option::is_some));
         self.reactivees.extend(autre.reactivees);
+        self.courrier_recu |= autre.courrier_recu;
     }
 
     /// Restitue les elements (les sous-solutions reactivees en dernier).

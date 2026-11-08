@@ -257,8 +257,16 @@ pub struct Compteurs {
     pub envois: u64,
     /// Molecules recues (courrier releve).
     pub receptions: u64,
-    /// Activations de regles a usage unique consommees (EF-D5).
+    /// Activations de regles a usage unique consommees.
     pub regles_retirees: u64,
+    /// Recherches de partenaires faites dans un index par valeur.
+    pub consultations_index: u64,
+    /// Phases dont les lots ont ete repartis d'apres une jointure.
+    pub repartitions_par_cle: u64,
+    /// Phases terminees sans fusion des lots (lots independants).
+    pub fusions_evitees: u64,
+    /// Segments de chaine places dans les lots (jointures asymetriques).
+    pub segments_de_chaine: u64,
 }
 
 impl Compteurs {
@@ -278,6 +286,10 @@ impl Compteurs {
         self.envois += autre.envois;
         self.receptions += autre.receptions;
         self.regles_retirees += autre.regles_retirees;
+        self.consultations_index += autre.consultations_index;
+        self.repartitions_par_cle += autre.repartitions_par_cle;
+        self.fusions_evitees += autre.fusions_evitees;
+        self.segments_de_chaine += autre.segments_de_chaine;
     }
 }
 
@@ -287,6 +299,8 @@ pub struct ContexteExecution<'a> {
     pub(crate) ids: &'a GenerateurIds,
     pub(crate) diffuseur: &'a Diffuseur,
     pub(crate) melanger: bool,
+    pub(crate) indexation: bool,
+    pub(crate) partition: bool,
     horloge: Instant,
     numero: AtomicU64,
     tours: AtomicU64,
@@ -307,11 +321,25 @@ impl<'a> ContexteExecution<'a> {
             ids,
             diffuseur,
             melanger,
+            indexation: true,
+            partition: true,
             horloge,
             numero: AtomicU64::new(0),
             tours: AtomicU64::new(0),
             compteurs: Mutex::new(Compteurs::default()),
         }
+    }
+
+    /// Active ou non la recherche des partenaires par valeur.
+    pub fn avec_indexation(mut self, active: bool) -> Self {
+        self.indexation = active;
+        self
+    }
+
+    /// Active ou non la repartition des lots guidee par les jointures.
+    pub fn avec_partition(mut self, active: bool) -> Self {
+        self.partition = active;
+        self
     }
 
     /// Secondes ecoulees depuis le debut.

@@ -65,7 +65,7 @@ La grammaire est LL(1) et analysée par descente récursive. La profondeur d'imb
 | 5 | `+ -` | gauche |
 | 6 | `* / mod` | gauche |
 | 7 | `-` unaire | préfixe |
-| 8 | littéraux, variables, parenthèses, n-uplets | — |
+| 8 | littéraux, variables, parenthèses, n-uplets | -- |
 
 Ainsi `not x == y` signifie `not (x == y)` et `-x * y` signifie `(-x) * y`. La commande `chem fmt` réimprime un programme avec le minimum de parenthèses compatible avec ce tableau.
 
@@ -78,7 +78,7 @@ Ainsi `not x == y` signifie `not (x == y)` et `-x * y` signifie `(-x) * y`. La c
 | `str` | `"rouge"` | ordre lexicographique (points de code) |
 | n-uplet | `(1, "a", true)` | au moins deux composantes, imbricables |
 | `sol` | `{ … }` | une sous-solution n'est pas une valeur : elle ne se manipule que par les motifs `s:sol` (liée et consommée) et `s:ref` (référencée) |
-| `ref` | — | référence à une sous-solution directe, inerte ou en cours d'exécution, qui n'est **pas consommée** : elle ne sert que de cible à `inject(e, s)` (injection asynchrone, §4.6) |
+| `ref` | -- | référence à une sous-solution directe, inerte ou en cours d'exécution, qui n'est **pas consommée** : elle ne sert que de cible à `inject(e, s)` (injection asynchrone, §4.6) |
 
 Un motif sans type (`x`) accepte **toute valeur mais jamais une sous-solution**. `x:int`, `x:bool`, `x:str` restreignent le type. Un motif n-uplet `(i, a)` n'accepte qu'un n-uplet de même arité et lie chaque composante.
 
@@ -104,7 +104,7 @@ Le langage ne fixe pas l'ordre des réactions. L'interpréteur propose :
 - `--strategie aleatoire` (défaut) : ordre pseudo-aléatoire rejouable, fixé par `--seed` ;
 - `--strategie ordonnee` : ordre du source, déterministe (tests).
 
-Un programme **confluent** (maximum, somme, crible, PGCD) donne le même résultat pour toute graine ; un programme non confluent (B13) peut donner des résultats différents, tous corrects.
+Un programme **confluent** (maximum, somme, crible, PGCD) donne le même résultat pour toute graine ; un programme non confluent peut donner des résultats différents, tous corrects.
 
 ### 4.4 Solutions imbriquées
 
@@ -128,7 +128,7 @@ let ajouter_3 = replace-one x by x + 3 ;     # avec 'replace', s'appliquerait sa
 { 5 | ajouter_3, ajouter_3 }                 # résultat : { 11 } (la règle a disparu)
 ```
 
-Une règle peut n'avoir **aucun réactif** : `replace by 10, 20`. Elle est applicable dans toute solution, même vide. Une telle règle — ou une règle dont tous les réactifs sont des références `s:ref`, qui ne sont pas consommées — est toujours applicable : à usage multiple, elle s'appliquerait sans fin (avertissement W0303, seul un garde-fou arrête l'exécution). Combinée à `replace-one`, elle sert à **amorcer** une solution ou à **borner des injections** :
+Une règle peut n'avoir **aucun réactif** : `replace by 10, 20`. Elle est applicable dans toute solution, même vide. Une telle règle -- ou une règle dont tous les réactifs sont des références `s:ref`, qui ne sont pas consommées -- est toujours applicable : à usage multiple, elle s'appliquerait sans fin (avertissement W0303, seul un garde-fou arrête l'exécution). Combinée à `replace-one`, elle sert à **amorcer** une solution ou à **borner des injections** :
 
 ```
 let amorcer = replace-one by 10, 20, 12 ;

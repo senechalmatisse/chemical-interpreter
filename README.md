@@ -1,15 +1,16 @@
 <div align="center">
 
-# ⚗️ chem
+# ⚗️ Chem Interpreter
 
 ### Programmez comme une réaction chimique.
 
 Un langage où **les données sont des molécules** qui flottent dans une solution, et où **le programme est un ensemble de réactions**.
 Pas de boucle, pas d'ordre d'exécution, pas d'état partagé : les molécules réagissent jusqu'à ce que plus rien ne bouge.
 
+[![Intégration continue](https://github.com/senechalmatisse/chemical-interpreter/actions/workflows/ci.yml/badge.svg)](https://github.com/senechalmatisse/chemical-interpreter/actions/workflows/ci.yml)
 [![Rust](https://img.shields.io/badge/Rust-2024-b7410e?logo=rust&logoColor=white)](engine/)
-[![Dépendances](https://img.shields.io/badge/d%C3%A9pendances-0-2ea44f)](engine/Cargo.toml)
-[![Tests](https://img.shields.io/badge/tests-145%20au%20vert-2ea44f)](engine/tests/)
+[![Dépendances](https://img.shields.io/badge/d%C3%A9pendances%20du%20moteur-0-2ea44f)](engine/Cargo.toml)
+[![Tests](https://img.shields.io/badge/tests-181%20au%20vert-2ea44f)](engine/tests/)
 [![React](https://img.shields.io/badge/React-19-149eca?logo=react&logoColor=white)](visualizer/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-7-3178c6?logo=typescript&logoColor=white)](visualizer/)
 [![D3](https://img.shields.io/badge/D3-7-f9a03c?logo=d3dotjs&logoColor=white)](visualizer/)
@@ -18,7 +19,7 @@ Pas de boucle, pas d'ordre d'exécution, pas d'état partagé : les molécules r
 
 *Le crible d'Ératosthène en une seule règle : chaque multiple réagit avec un de ses diviseurs et disparaît.*
 
-[Essayer en 30 secondes](#-essayer-en-30-secondes) · [Le langage](#-le-langage-en-une-minute) · [Le visualiseur](#-voir-les-réactions) · [Sous le capot](#-sous-le-capot) · [Documentation](#-documentation)
+[Essayer en 30 secondes](#-essayer-en-30-secondes) · [Visualiseur en ligne](https://senechalmatisse.github.io/chemical-interpreter/) · [Le langage](#-le-langage-en-une-minute) · [Le visualiseur](#-voir-les-réactions) · [Sous le capot](#-sous-le-capot) · [Documentation](#-documentation)
 
 </div>
 
@@ -44,13 +45,13 @@ Aucune boucle, aucun indice, aucun tableau de booléens. On décrit **ce qui doi
 <tr>
 <td width="50%" valign="top">
 
-**🔬 Un vrai langage**
+**Un vrai langage**
 Entiers, booléens, chaînes, n-uplets, intervalles, règles de toute arité. Une grammaire EBNF, un analyseur écrit à la main et des messages d'erreur qui montrent l'endroit exact du problème.
 
 </td>
 <td width="50%" valign="top">
 
-**⚡ Parallèle, vraiment**
+**Parallèle, vraiment**
 `--workers 4` et les réactions indépendantes s'exécutent en même temps. Aucune molécule consommée deux fois, aucun interblocage, garanti par construction et vérifié par 100 exécutions répétées.
 
 </td>
@@ -58,13 +59,13 @@ Entiers, booléens, chaînes, n-uplets, intervalles, règles de toute arité. Un
 <tr>
 <td valign="top">
 
-**🪆 Des solutions dans les solutions**
+**Des solutions dans les solutions**
 Des sous-programmes calculent chacun de leur côté, puis se **dissolvent** dans leur parent ou reçoivent de nouvelles données par **injection**.
 
 </td>
 <td valign="top">
 
-**🎬 Tout est observable**
+**Tout est observable**
 Chaque réaction est tracée. On la rejoue, on la vérifie, on la regarde dans la console pas à pas ou dans un visualiseur web animé.
 
 </td>
@@ -72,13 +73,13 @@ Chaque réaction est tracée. On la rejoue, on la vérifie, on la regarde dans l
 <tr>
 <td valign="top">
 
-**📬 Envoyer des données à un calcul en cours**
+**Envoyer des données à un calcul en cours**
 Une règle peut **injecter** des molécules dans un sous-programme **pendant qu'il tourne**, sans attendre qu'il ait fini : les molécules voyagent par une boîte aux lettres et rejoignent le calcul au fil de l'eau.
 
 </td>
 <td valign="top">
 
-**☝️ Une fois, et pas plus**
+**Une fois, et pas plus**
 Les règles `replace-one` ne s'appliquent qu'une seule fois, puis disparaissent. Avec les règles sans réactif, elles amorcent un calcul ou bornent un flux d'injections.
 
 </td>
@@ -94,6 +95,8 @@ cargo build --release                                                           
 ./target/release/chem run ../exemples/b01_maximum.chem
 ./target/release/chem run ../exemples/b06_dissolution.chem --workers 4 --stats
 ./target/release/chem run ../exemples/b01_maximum.chem --pas-a-pas              # Entrée, Entrée, Entrée...
+
+cargo build --release --manifest-path ../integrations/Cargo.toml                # la même commande avec Rayon, Clap, Serde et Miette
 ```
 
 Seul prérequis : Rust (la version 1.99.1 est installée automatiquement par `rust-toolchain.toml`).
@@ -203,7 +206,7 @@ Onze démonstrations sont incluses, dont le crible jusqu'à 1 000 exécuté sur 
 
 <img src="docs/apercu-injection-asynchrone.png" alt="Injection asynchrone : des molécules en transit, en pointillé, attendent au bord de la sous-solution qui crible pendant que la solution principale lui en envoie d'autres" width="100%">
 
-## 🔧 Sous le capot
+## Workflow
 
 ```mermaid
 flowchart LR
@@ -224,6 +227,12 @@ flowchart LR
 
 **Une trace qui se vérifie elle-même.** `chem replay trace.jsonl --programme prog.chem` ré-exécute chaque réaction enregistrée et vérifie la condition, les produits, l'absence de double consommation, le courrier envoyé et reçu, et qu'une règle `replace-one` ne sert qu'une fois. Une exécution parallèle devient ainsi une exécution séquentielle valide.
 
+**Des jointures en temps linéaire.** Une condition d'égalité entre deux réactifs (`replace (a, b), (c, d) by (a, d) if b == c`) n'essaie plus tous les couples : les molécules sont rangées par valeur, et chaque recherche ne regarde que les partenaires qui ont la bonne clé. Une analyse à la compilation garantit que l'index ne change ni les réactions possibles ni les erreurs signalées. Pour les jointures symétriques (`x == y`, `k == l`), les lots parallèles sont en plus répartis par clé : chaque groupe de même clé réagit en entier dans un seul lot, et la phase se passe même des fusions quand la règle garde ses clés. Les chaînes (`b == c`) sont coupées en segments que les lots contractent en parallèle, et pour les longues chaînes le découpage lui-même est réparti entre les workers.
+
+**Zéro dépendance, quatre bibliothèques branchées.** Le moteur n'utilise que la bibliothèque standard. Rayon (pool à vol de tâches), Clap (arguments), Serde (trace) et Miette (rendu des erreurs) se branchent chacun sur une interface du moteur, dans le paquet [`integrations/`](integrations/), derrière sa propre fonctionnalité Cargo : même commande, mêmes résultats, et des tests d'équivalence le vérifient.
+
+**Vérifié à chaque commit.** L'intégration continue teste le moteur sous Linux, macOS et Windows, chaque intégration seule, rejoue les tests de concurrence avec les deux exécutables, audite les dépendances, mesure la couverture et la performance, et publie le visualiseur en ligne ([`docs/integration-continue.md`](docs/integration-continue.md)).
+
 **Une architecture lisible.** Chacun des choix est justifié dans [`docs/architecture.md`](docs/architecture.md).
 
 ### Quelques chiffres
@@ -233,7 +242,11 @@ flowchart LR
 | Maximum de 10 000 entiers | **1,3 ms** |
 | Crible jusqu'à 1 000 | **23 ms** |
 | Accélération avec 4 workers (réactions indépendantes) | **×2,05**, sur une machine de 2 cœurs |
-| Tests | **123** côté Rust, **22** côté visualiseur |
+| Jointure d'une chaîne de 3 000 maillons (`if b == c`) | **1,6 ms** au lieu de 165 ms, grâce à l'index par valeur |
+| Doublons de 40 000 valeurs, 4 workers | **×2,2** face à la distribution circulaire, grâce à la répartition des lots par clé |
+| Chaîne de 30 000 maillons, 2 cœurs | **×1,4** face à un seul worker, grâce à la contraction par segments |
+| Découpage d'une chaîne de 300 000 maillons | **15 ms** au lieu de 31 ms sur un cœur, **12 ms** sur deux |
+| Tests | **159** pour le moteur, **18** pour les intégrations, **22** côté visualiseur |
 | Dépendances externes du moteur | **0** |
 
 Méthode et analyse complètes : [`docs/performance.md`](docs/performance.md).
@@ -246,25 +259,20 @@ Méthode et analyse complètes : [`docs/performance.md`](docs/performance.md).
 | [Manuel utilisateur](docs/utilisateur.md) | commandes, options, codes de retour, visualiseur, scripts |
 | [Format de trace](docs/format-trace.md) | le format JSON Lines et son rejeu |
 | [Architecture](docs/architecture.md) | modules, algorithme parallèle et preuves de correction |
-| [Performances](docs/performance.md) | mesures séquentiel contre parallèle, analyse |
+| [Performances](docs/performance.md) | mesures séquentiel contre parallèle, index par valeur, analyse |
+| [Intégration continue](docs/integration-continue.md) | workflows GitHub Actions, équivalents locaux, règles de la branche principale, publication |
 
 ## 🗂️ Organisation du dépôt
 
 ```
 chemical-interpreter/
 ├── engine/        moteur Rust : lexer, parser, sémantique, moteur, ordonnanceur, trace, CLI
+├── integrations/  Rayon, Clap, Serde et Miette branchés sur les interfaces du moteur
 ├── visualizer/    application React + TypeScript + D3
 ├── exemples/      20 programmes avec résultat attendu, et des scénarios de performance
 ├── docs/          manuels, architecture, performances
 └── scripts/       qualité, tests de concurrence, mesures, démonstrations
 ```
-
-## 🛣️ Pistes
-
-- [ ] Brancher Rayon, Clap, Serde et Miette : chaque point d'intégration est isolé et documenté
-- [x] Règles à usage unique et règles sans réactif
-- [x] Injection asynchrone dans une sous-solution en cours d'exécution
-- [ ] Indexation des molécules par valeur pour accélérer les conditions d'égalité
 
 ## 📜 Références
 

@@ -19,8 +19,9 @@ name = "moteur"
 harness = false
 
 # Aucune dependance externe : le moteur n'utilise que la bibliotheque standard.
-# Voir docs/architecture.md, section "Dependances et points d'integration",
-# pour brancher Rayon, Clap, Serde, Miette, Thiserror, Proptest et Criterion.
+# Rayon, Clap, Serde et Miette sont branches sur ses interfaces dans le paquet
+# integrations/ (docs/architecture.md, section "Dependances et points
+# d'integration", qui decrit aussi Thiserror, Proptest et Criterion).
 [dependencies]
 
 [dev-dependencies]

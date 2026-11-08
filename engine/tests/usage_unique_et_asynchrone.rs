@@ -204,11 +204,16 @@ fn courrier_recu_pendant_l_execution_de_la_cible() {
     // La sous-solution crible 2..3000 pendant que la solution principale lui
     // envoie 2..400 : avec plusieurs workers, le courrier est releve en
     // plusieurs fois, entre deux passes de la cible (pas seulement a son
-    // tour suivant). Le resultat ne depend pas du minutage.
+    // tour suivant). Le resultat ne depend pas du minutage ; l'entrelacement,
+    // lui, en depend : jusqu'a 40 essais (au moins 6) pour l'observer, ce qui
+    // rend le test stable sur une machine chargee (integration continue).
     let texte = "let crible = replace x, y by x if y mod x == 0 ;\nlet transmettre = replace x:int, s:ref by inject(x, s) ;\n{ 2..400, { 2..3000 | crible } | transmettre }";
     let paralleles = std::thread::available_parallelism().map_or(1, |n| n.get());
     let mut entrelacement = false;
-    for graine in 0..6 {
+    for graine in 0..40 {
+        if entrelacement && graine >= 6 {
+            break;
+        }
         let (e, evenements) = executer_et_verifier(texte, &config(Strategie::Aleatoire, graine, 4));
         let sous = e.solution.sous_solutions().next().expect("sous-solution");
         assert_eq!(sous.molecules().count(), 430, "nombres premiers < 3000");
@@ -228,7 +233,7 @@ fn courrier_recu_pendant_l_execution_de_la_cible() {
     if paralleles >= 2 {
         assert!(
             entrelacement,
-            "aucune reception pendant l'execution de la cible en 6 essais"
+            "aucune reception pendant l'execution de la cible en 40 essais"
         );
     }
 }

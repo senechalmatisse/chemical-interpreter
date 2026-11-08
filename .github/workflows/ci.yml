@@ -1,0 +1,175 @@
+# Integration continue : chaque poussee sur main et chaque demande de fusion
+# doit garder le moteur, le paquet integrations, le visualiseur et les scripts
+# au vert. Les memes verifications tournent en local avec scripts/chemxte01.sh.
+name: Integration continue
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+
+jobs:
+  moteur:
+    name: Moteur (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+        working-directory: engine
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rust
+      - name: Format (rustfmt)
+        if: runner.os == 'Linux'
+        run: cargo fmt --check
+      - name: Analyse statique (clippy)
+        if: runner.os == 'Linux'
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test --locked
+      - name: Documentation (rustdoc)
+        if: runner.os == 'Linux'
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --locked --no-deps
+      - name: Traces de demonstration du visualiseur rejouables
+        if: runner.os == 'Linux'
+        working-directory: .
+        env:
+          CHEM_BINAIRE: engine/target/debug/chem
+        run: scripts/chemxvi02.sh
+
+  integrations:
+    name: Integrations (${{ matrix.fonctionnalites }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # Chaque point d'integration doit compiler et passer ses tests seul.
+        fonctionnalites: [toutes, aucune, rayon, clap, serde, miette]
+    defaults:
+      run:
+        working-directory: integrations
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rust
+        with:
+          cle-cache: ${{ matrix.fonctionnalites }}
+      - name: Options Cargo
+        env:
+          V_C_Fonctionnalites: ${{ matrix.fonctionnalites }}
+        run: |
+          case "${V_C_Fonctionnalites}" in
+            toutes) V_C_Options="" ;;
+            aucune) V_C_Options="--no-default-features" ;;
+            *) V_C_Options="--no-default-features --features ${V_C_Fonctionnalites}" ;;
+          esac
+          echo "V_C_Options=${V_C_Options}" >> "${GITHUB_ENV}"
+      - name: Format (rustfmt)
+        if: matrix.fonctionnalites == 'toutes'
+        run: cargo fmt --check
+      - name: Analyse statique (clippy)
+        run: cargo clippy ${V_C_Options} --all-targets -- -D warnings
+      - name: Tests
+        run: cargo test ${V_C_Options}
+      - name: Documentation (rustdoc)
+        if: matrix.fonctionnalites == 'toutes'
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --no-deps
+
+  concurrence:
+    name: Concurrence (executions repetees)
+    needs: [moteur, integrations]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rust
+        with:
+          cle-cache: release
+      - name: Construction (release)
+        run: |
+          ( cd engine && cargo build --locked --release )
+          ( cd integrations && cargo build --release )
+      - name: Moteur (pool de la bibliotheque standard)
+        env:
+          CHEM_BINAIRE: engine/target/release/chem
+        run: scripts/chemxte02.sh 25 4
+      - name: Paquet integrations (Rayon, Clap, Serde, Miette)
+        env:
+          CHEM_BINAIRE: integrations/target/release/chem
+        run: scripts/chemxte02.sh 25 4
+
+  visualiseur:
+    name: Visualiseur
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: visualizer
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: visualizer/package-lock.json
+      - name: Dependances
+        run: npm ci
+      - name: Verification de types
+        run: npm run typecheck
+      - name: Tests
+        run: npm test
+      - name: Construction
+        run: npm run build
+
+  scripts:
+    name: Scripts shell
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Syntaxe
+        run: |
+          for V_C_Script in scripts/*.sh
+          do
+            bash -n "${V_C_Script}"
+          done
+      - name: ShellCheck
+        run: shellcheck --severity=warning scripts/*.sh
+      - name: Normes (ni tabulation ni caractere accentue)
+        run: |
+          if grep -nP '\t|[^\x00-\x7F]' scripts/*.sh
+          then
+            echo "::error::tabulation ou caractere non ASCII dans un script"
+            exit 1
+          fi

@@ -1,0 +1,100 @@
+# Performance : sur une demande de fusion qui touche le moteur, les mesures de
+# scripts/chemxpe01.sh sont prises sur la branche et sur la base, puis mises
+# cote a cote dans le recapitulatif du job ; le pool Rayon est mesure face au
+# pool standard (scripts/chemxpe02.sh) sur une machine d'au moins 4 coeurs
+# (ubuntu-latest en a 4 pour un depot public). Les machines partagees de
+# GitHub sont bruitees : seuls les ecarts importants sont significatifs.
+name: Performance
+
+on:
+  pull_request:
+    paths:
+      - engine/src/**
+      - engine/benches/**
+      - engine/Cargo.toml
+      - integrations/src/parallelisme.rs
+      - integrations/benches/**
+  workflow_dispatch:
+    inputs:
+      executeur:
+        description: Machine des mesures des pools (4 coeurs au moins), par exemple ubuntu-latest ou ubuntu-24.04-arm
+        type: string
+        default: ubuntu-latest
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: never
+
+jobs:
+  mesures:
+    name: Mesures du moteur
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ./.github/actions/rust
+        with:
+          cle-cache: performance
+      - name: Mesures de la branche
+        run: scripts/chemxpe01.sh "${RUNNER_TEMP}/mesures-branche.md"
+      - name: Mesures de la base
+        if: github.event_name == 'pull_request'
+        env:
+          V_C_Base: ${{ github.event.pull_request.base.sha }}
+        run: |
+          git worktree add --detach "${RUNNER_TEMP}/base" "${V_C_Base}"
+          if [ -x "${RUNNER_TEMP}/base/scripts/chemxpe01.sh" ]
+          then
+            "${RUNNER_TEMP}/base/scripts/chemxpe01.sh" "${RUNNER_TEMP}/mesures-base.md"
+          else
+            echo "Pas de script de mesure sur la base" > "${RUNNER_TEMP}/mesures-base.md"
+          fi
+      - name: Recapitulatif
+        run: |
+          {
+            echo "## Mesures de la branche"
+            echo ""
+            cat "${RUNNER_TEMP}/mesures-branche.md"
+            if [ -f "${RUNNER_TEMP}/mesures-base.md" ]
+            then
+              echo ""
+              echo "## Mesures de la base"
+              echo ""
+              cat "${RUNNER_TEMP}/mesures-base.md"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mesures
+          path: ${{ runner.temp }}/mesures-*.md
+          retention-days: 30
+
+  pools:
+    name: Pool Rayon face au pool standard
+    runs-on: ${{ inputs.executeur || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/rust
+        with:
+          cle-cache: pools
+      - name: Mesures
+        run: scripts/chemxpe02.sh "${RUNNER_TEMP}/mesures-pools.md"
+      - name: Recapitulatif
+        run: cat "${RUNNER_TEMP}/mesures-pools.md" >> "${GITHUB_STEP_SUMMARY}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: mesures-pools
+          path: ${{ runner.temp }}/mesures-pools.md
+          retention-days: 90

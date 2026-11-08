@@ -1,0 +1,14 @@
+# Fins de ligne LF sur toutes les plateformes : scripts bash, programmes
+# .chem (positions ligne:colonne des diagnostics), traces JSON Lines.
+* text=auto eol=lf
+
+*.png binary
+*.gif binary
+*.ico binary
+
+# Fichiers generes : exclus des statistiques de langage et replies dans les
+# differences des demandes de fusion.
+visualizer/public/exemples/*.jsonl linguist-generated=true
+visualizer/public/exemples/index.json linguist-generated=true
+visualizer/package-lock.json linguist-generated=true
+**/Cargo.lock linguist-generated=true

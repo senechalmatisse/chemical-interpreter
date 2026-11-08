@@ -1,8 +1,10 @@
 //! JSON minimal (ecriture et lecture) pour la trace JSON Lines.
 //!
-//! Point d'integration : ce module joue le role de Serde JSON. Il ne couvre
-//! que ce dont la trace a besoin ; les entiers sont conserves exactement
-//! (pas de passage par `f64`) et la profondeur de lecture est bornee.
+//! Implementation standard du codage des traces ([`super::FormatInterne`]),
+//! que le paquet `integrations` remplace par Serde JSON derriere
+//! [`super::FormatTrace`]. Il ne couvre que ce dont la trace a besoin ; les
+//! entiers sont conserves exactement (pas de passage par `f64`) et la
+//! profondeur de lecture est bornee.
 
 use std::fmt::Write;
 

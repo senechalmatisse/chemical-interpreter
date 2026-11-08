@@ -1,0 +1,51 @@
+[package]
+name = "chem-integrations"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+description = "Commande chem avec Rayon, Clap, Serde et Miette"
+publish = false
+
+[lib]
+name = "chem_integrations"
+path = "src/lib.rs"
+
+# Meme nom que l'executable du moteur : `cargo install --path integrations`
+# installe une commande `chem` identique, construite avec les bibliotheques
+# ci-dessous. `doc = false` evite la collision avec la documentation de la
+# bibliotheque `chem`.
+[[bin]]
+name = "chem"
+path = "src/main.rs"
+doc = false
+
+# Pool Rayon face au pool standard : `cargo bench --bench pools`
+# (scripts/chemxpe02.sh).
+[[bench]]
+name = "pools"
+harness = false
+required-features = ["rayon"]
+
+# Une fonctionnalite par point d'integration : chacune peut etre activee
+# seule (`--no-default-features --features rayon`) ; les points non actives
+# gardent l'implementation de la bibliotheque standard.
+[features]
+default = ["rayon", "clap", "serde", "miette"]
+rayon = ["dep:rayon"]
+clap = ["dep:clap"]
+serde = ["dep:serde", "dep:serde_json"]
+miette = ["dep:miette"]
+
+[dependencies]
+chem = { path = "../engine" }
+rayon = { version = "1.10", optional = true }
+clap = { version = "4.5", optional = true }
+serde = { version = "1.0", optional = true }
+# float_roundtrip : lecture des reels exacte, comme `str::parse::<f64>`.
+serde_json = { version = "1.0", optional = true, features = ["float_roundtrip"] }
+miette = { version = "7.2", optional = true, default-features = false, features = [
+  "fancy-no-backtrace",
+] }
+
+[lints.rust]
+unsafe_code = "forbid"

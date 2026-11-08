@@ -17,6 +17,18 @@ impl Alea {
         Self { etat: graine }
     }
 
+    /// Generateur place directement au tirage `rang` de la suite de
+    /// `graine` : son premier tirage est le tirage `rang` (compte a partir
+    /// de 0) de `Alea::new(graine)`. L'etat de SplitMix64 avance d'une
+    /// constante a chaque tirage : des taches paralleles peuvent ainsi
+    /// tirer chacune sa part d'une meme suite, sans dependre les unes des
+    /// autres.
+    pub fn au_rang(graine: u64, rang: u64) -> Self {
+        Self {
+            etat: graine.wrapping_add(rang.wrapping_mul(0x9E37_79B9_7F4A_7C15)),
+        }
+    }
+
     /// Entier pseudo-aleatoire suivant.
     pub fn suivant(&mut self) -> u64 {
         self.etat = self.etat.wrapping_add(0x9E37_79B9_7F4A_7C15);
@@ -101,6 +113,15 @@ mod tests {
         assert_ne!(v, (0..100).collect::<Vec<_>>());
         v.sort_unstable();
         assert_eq!(v, (0..100).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn acces_direct_a_un_rang() {
+        let mut suite = Alea::new(42);
+        for rang in 0..100 {
+            assert_eq!(Alea::au_rang(42, rang).suivant(), suite.suivant());
+        }
+        assert_eq!(Alea::au_rang(7, 0).suivant(), Alea::new(7).suivant());
     }
 
     #[test]

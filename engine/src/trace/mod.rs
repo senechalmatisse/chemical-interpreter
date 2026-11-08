@@ -8,6 +8,7 @@
 
 mod console;
 mod evenement;
+mod format;
 pub mod json;
 mod jsonl;
 mod modele;
@@ -15,6 +16,7 @@ mod observateur;
 
 pub use console::{PasAPas, TraceConsole};
 pub use evenement::{Evenement, VERSION_FORMAT, valeur_depuis_json, valeur_vers_json};
+pub use format::{FormatInterne, FormatTrace};
 pub use jsonl::TraceJsonl;
 pub use modele::{FinTrace, ModeleTrace};
 pub use observateur::{Diffuseur, Enregistreur, Observateur, TAILLE_LOT};

@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # FONCTION : Lancement de la chaine de qualite complete : format (rustfmt),
-#            analyse statique (clippy), tests du moteur, verification de
+#            analyse statique (clippy), tests du moteur, tests du paquet
+#            integrations (Clap, Miette, Serde, Rayon), verification de
 #            types et tests du visualiseur
 #
 # PARAMETRES : Ce programme ne prend pas de parametre
@@ -29,6 +30,16 @@ cd "${V_C_Repertoire_Depot}/engine" || exit 1
 f_etape "Format du moteur (rustfmt)" cargo fmt --check
 f_etape "Analyse statique (clippy)" cargo clippy --all-targets -- -D warnings
 f_etape "Tests du moteur" cargo test
+
+cd "${V_C_Repertoire_Depot}/integrations" || exit 1
+if cargo fetch > /dev/null 2>&1
+then
+  f_etape "Format du paquet integrations (rustfmt)" cargo fmt --check
+  f_etape "Analyse statique du paquet integrations (clippy)" cargo clippy --all-targets -- -D warnings
+  f_etape "Tests du paquet integrations" cargo test
+else
+  echo "== Paquet integrations ignore : dependances indisponibles (reseau requis au premier lancement)"
+fi
 
 cd "${V_C_Repertoire_Depot}/visualizer" || exit 1
 if [ -d "node_modules" ]

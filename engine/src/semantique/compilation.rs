@@ -9,7 +9,7 @@
 use crate::ast::*;
 use crate::diagnostic::{Diagnostic, Diagnostics};
 use crate::evaluateur::{ExprCompilee, Valeur};
-use crate::moteur::{Filtre, MotifCompile, ProduitCompile, RegleCompilee};
+use crate::moteur::{Filtre, MotifCompile, ProduitCompile, RegleCompilee, jointure};
 use crate::solution::{ConstructeurSolution, GenerateurIds, Solution};
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -194,15 +194,18 @@ pub fn compiler_regle(definition: &Definition) -> Result<RegleCompilee, Diagnost
             }
         });
     }
+    let emplacements = portee.emplacements.len();
+    let jointure = jointure::analyser(&motifs, condition.as_ref(), &produits, emplacements);
     Ok(RegleCompilee {
         nom: Arc::from(definition.nom.nom.as_str()),
         motifs,
         condition,
         produits,
-        emplacements: portee.emplacements.len(),
+        emplacements,
         span: definition.span,
         unique: regle.unique,
         references: portee.references.len(),
+        jointure,
     })
 }
 

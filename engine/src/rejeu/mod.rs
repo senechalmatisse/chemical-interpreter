@@ -12,7 +12,7 @@
 use crate::evaluateur::Valeur;
 use crate::moteur::{MotifCompile, ProduitCompile, RegleCompilee};
 use crate::solution::IdSolution;
-use crate::trace::{Evenement, ModeleTrace};
+use crate::trace::{Evenement, FormatInterne, FormatTrace, ModeleTrace};
 use std::collections::BTreeMap;
 use std::fmt;
 use std::io::BufRead;
@@ -305,6 +305,15 @@ pub fn rejouer(
     lecteur: impl BufRead,
     regles: Option<&BTreeMap<String, Arc<RegleCompilee>>>,
 ) -> Result<Rejeu, ErreurRejeu> {
+    rejouer_avec_format(lecteur, regles, &FormatInterne)
+}
+
+/// Comme [`rejouer`], en decodant les lignes avec le format donne.
+pub fn rejouer_avec_format(
+    lecteur: impl BufRead,
+    regles: Option<&BTreeMap<String, Arc<RegleCompilee>>>,
+    format: &dyn FormatTrace,
+) -> Result<Rejeu, ErreurRejeu> {
     let mut modele = ModeleTrace::new();
     let mut verificateur = regles.map(|regles| Verificateur {
         regles,
@@ -324,7 +333,7 @@ pub fn rejouer(
         if ligne.trim().is_empty() {
             continue;
         }
-        let evenement = Evenement::depuis_ligne(&ligne).map_err(|message| ErreurRejeu {
+        let evenement = format.lire(&ligne).map_err(|message| ErreurRejeu {
             ligne: numero,
             message,
             format: true,

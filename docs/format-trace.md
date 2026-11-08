@@ -65,6 +65,8 @@ Le rejeu refuse toute incohérence :
 
 Une trace produite en parallèle est ainsi validée comme une exécution séquentielle possible.
 
+Le codage des lignes est confié à l'interface `trace::FormatTrace` : le moteur utilise son propre module JSON (`FormatInterne`), la commande du paquet `integrations` utilise Serde JSON (`FormatSerde`). Les deux écrivent les mêmes lignes, octet pour octet (réels au format `Display` de Rust, caractères de contrôle en `\u00XX`, ordre des champs conservé), et lisent les mêmes traces : une trace écrite par l'une se rejoue avec l'autre.
+
 ## Évolutions
 
 Les lecteurs ignorent les champs inconnus. Un nouvel événement doit être ajouté à `engine/src/trace/evenement.rs` (écriture et lecture), à `engine/src/trace/modele.rs` (validation), à `visualizer/src/trace/` (types et analyse), à `visualizer/src/modele/commandes.ts` (commande annulable) et à ce document ; `version` est incrémentée à chaque ajout. La version 2 est rétrocompatible : toute trace de version 1 reste lisible.

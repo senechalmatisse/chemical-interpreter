@@ -4,6 +4,7 @@
 //! l'activent : patron Poids-mouche (l'etat intrinseque, la regle, est
 //! partage ; l'etat extrinseque, les molecules, reste dans chaque solution).
 
+use super::jointure::Jointure;
 use crate::evaluateur::{ExprCompilee, Valeur};
 use crate::solution::Element;
 use crate::source::Span;
@@ -157,6 +158,9 @@ pub struct RegleCompilee {
     /// Nombre de references `s:ref` (sous-solutions distinctes, non
     /// consommees, cibles des envois).
     pub references: usize,
+    /// Egalite entre les deux reactifs utilisable pour chercher les
+    /// partenaires par valeur (voir [`super::jointure`]).
+    pub jointure: Option<Jointure>,
 }
 
 impl RegleCompilee {

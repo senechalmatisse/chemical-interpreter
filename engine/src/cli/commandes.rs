@@ -2,10 +2,10 @@
 //! autonome, construit par la fabrique de [`super::fabriquer`] et execute
 //! avec des entrees-sorties injectees (testables sans terminal).
 
-use super::{CodeRetour, EntreesSorties};
+use super::{CodeRetour, Composants, EntreesSorties};
 use crate::annulation::JetonAnnulation;
 use crate::application::Interpreteur;
-use crate::diagnostic::{Diagnostics, rendre};
+use crate::diagnostic::{Diagnostics, RenduDiagnostic};
 use crate::moteur::Arret;
 use crate::ordonnanceur::{Configuration, Issue};
 use crate::rejeu;
@@ -32,9 +32,14 @@ fn lire_source(chemin: &Path, es: &mut EntreesSorties) -> Result<Source, CodeRet
     })
 }
 
-fn afficher_diagnostics(diagnostics: &Diagnostics, source: &Source, es: &mut EntreesSorties) {
+fn afficher_diagnostics(
+    diagnostics: &Diagnostics,
+    source: &Source,
+    es: &mut EntreesSorties,
+    rendu: &dyn RenduDiagnostic,
+) {
     for d in diagnostics.tries() {
-        let _ = write!(es.erreurs, "{}", rendre(d, source));
+        let _ = write!(es.erreurs, "{}", rendu.rendre(d, source));
     }
     let erreurs = diagnostics.erreurs().count();
     if erreurs > 1 {
@@ -56,6 +61,8 @@ pub struct CommandeRun {
     pub pas_a_pas: bool,
     /// Affichage des statistiques.
     pub statistiques: bool,
+    /// Implementations des points d'integration.
+    pub composants: Composants,
 }
 
 impl Commande for CommandeRun {
@@ -64,16 +71,18 @@ impl Commande for CommandeRun {
             Ok(s) => s,
             Err(code) => return code,
         };
-        let interpreteur = Interpreteur::new();
+        let rendu = &*self.composants.diagnostics;
+        let interpreteur =
+            Interpreteur::new().avec_parallelisme(self.composants.parallelisme.clone());
         let programme =
             match interpreteur.charger(&source, self.configuration.limites().max_molecules) {
                 Ok(p) => p,
                 Err(diagnostics) => {
-                    afficher_diagnostics(&diagnostics, &source, es);
+                    afficher_diagnostics(&diagnostics, &source, es, rendu);
                     return CodeRetour::ErreurProgramme;
                 }
             };
-        afficher_diagnostics(&programme.avertissements, &source, es);
+        afficher_diagnostics(&programme.avertissements, &source, es, rendu);
 
         let annulation = JetonAnnulation::new();
         let mut diffuseur = Diffuseur::new();
@@ -104,7 +113,7 @@ impl Commande for CommandeRun {
                     }
                 }
             };
-            diffuseur.abonner(Box::new(trace));
+            diffuseur.abonner(Box::new(trace.avec_format(self.composants.trace.clone())));
         }
 
         let execution =
@@ -124,7 +133,11 @@ impl Commande for CommandeRun {
         match &execution.issue {
             Issue::Inerte => CodeRetour::Succes,
             Issue::Arretee(Arret::Erreur(erreur)) => {
-                let _ = write!(es.erreurs, "{}", rendre(&erreur.diagnostic(), &source));
+                let _ = write!(
+                    es.erreurs,
+                    "{}",
+                    rendu.rendre(&erreur.diagnostic(), &source)
+                );
                 CodeRetour::ErreurExecution
             }
             Issue::Arretee(arret) => {
@@ -143,6 +156,8 @@ impl Commande for CommandeRun {
 pub struct CommandeCheck {
     /// Programme.
     pub fichier: PathBuf,
+    /// Implementations des points d'integration.
+    pub composants: Composants,
 }
 
 impl Commande for CommandeCheck {
@@ -151,9 +166,10 @@ impl Commande for CommandeCheck {
             Ok(s) => s,
             Err(code) => return code,
         };
+        let rendu = &*self.composants.diagnostics;
         match Interpreteur::new().charger(&source, None) {
             Ok(p) => {
-                afficher_diagnostics(&p.avertissements, &source, es);
+                afficher_diagnostics(&p.avertissements, &source, es, rendu);
                 let _ = writeln!(
                     es.sortie,
                     "ok : {} regle(s), {} molecule(s) et {} solution(s) initiales",
@@ -164,7 +180,7 @@ impl Commande for CommandeCheck {
                 CodeRetour::Succes
             }
             Err(diagnostics) => {
-                afficher_diagnostics(&diagnostics, &source, es);
+                afficher_diagnostics(&diagnostics, &source, es, rendu);
                 CodeRetour::ErreurProgramme
             }
         }
@@ -175,6 +191,8 @@ impl Commande for CommandeCheck {
 pub struct CommandeFmt {
     /// Programme.
     pub fichier: PathBuf,
+    /// Implementations des points d'integration.
+    pub composants: Composants,
 }
 
 impl Commande for CommandeFmt {
@@ -189,7 +207,7 @@ impl Commande for CommandeFmt {
                 CodeRetour::Succes
             }
             Err(diagnostics) => {
-                afficher_diagnostics(&diagnostics, &source, es);
+                afficher_diagnostics(&diagnostics, &source, es, &*self.composants.diagnostics);
                 CodeRetour::ErreurProgramme
             }
         }
@@ -202,6 +220,8 @@ pub struct CommandeReplay {
     pub trace: PathBuf,
     /// Programme pour la verification des reactions.
     pub programme: Option<PathBuf>,
+    /// Implementations des points d'integration.
+    pub composants: Composants,
 }
 
 impl Commande for CommandeReplay {
@@ -216,7 +236,12 @@ impl Commande for CommandeReplay {
                 match Interpreteur::new().charger(&source, None) {
                     Ok(p) => Some(p.compile),
                     Err(diagnostics) => {
-                        afficher_diagnostics(&diagnostics, &source, es);
+                        afficher_diagnostics(
+                            &diagnostics,
+                            &source,
+                            es,
+                            &*self.composants.diagnostics,
+                        );
                         return CodeRetour::ErreurProgramme;
                     }
                 }
@@ -233,7 +258,11 @@ impl Commande for CommandeReplay {
                 return CodeRetour::ErreurProgramme;
             }
         };
-        match rejeu::rejouer(BufReader::new(fichier), compile.as_ref().map(|c| &c.regles)) {
+        match rejeu::rejouer_avec_format(
+            BufReader::new(fichier),
+            compile.as_ref().map(|c| &c.regles),
+            &*self.composants.trace,
+        ) {
             Ok(r) => {
                 let _ = writeln!(
                     es.sortie,

@@ -27,6 +27,7 @@
 
 use super::combinaisons::{Combinaisons, Permutations};
 use super::contexte::{Arret, Compteurs, ContexteExecution, ErreurExecution};
+use super::jointure::IndexValeurs;
 use super::lot::Lot;
 use super::regle::{MotifCompile, ProduitCompile, RegleCompilee};
 use crate::alea::Alea;
@@ -78,6 +79,16 @@ struct EtatLocal {
     envois: Vec<Vec<Molecule>>,
     /// Boites a rouvrir apres la validation (sous-solutions conservees).
     a_rouvrir: Vec<Arc<BoiteAuxLettres>>,
+    /// Index par valeur des regles a jointure (`None` : regle sans index).
+    index: Vec<Option<IndexValeurs>>,
+    /// Au moins une regle indexee.
+    index_actif: bool,
+    /// Numero de la passe courante (validite des index).
+    passe: u64,
+    /// Emplacements remplis par la derniere validation, a indexer.
+    places: Vec<usize>,
+    /// Environnement de travail pour calculer les cles des candidats.
+    cles: Vec<Valeur>,
     alea: Option<Alea>,
 }
 
@@ -217,6 +228,11 @@ impl<'c, 'a> Reacteur<'c, 'a> {
     /// reactions. En cas d'arret, le lot reste coherent (aucune molecule
     /// perdue ni dupliquee) et les evenements deja produits sont publies.
     pub fn reagir(&self, lot: &mut Lot, worker: usize) -> Result<u64, Arret> {
+        let index: Vec<Option<IndexValeurs>> = self
+            .regles
+            .iter()
+            .map(|r| (self.ctx.indexation && r.jointure.is_some()).then(IndexValeurs::default))
+            .collect();
         let mut local = EtatLocal {
             worker,
             jetons: 0,
@@ -236,6 +252,11 @@ impl<'c, 'a> Reacteur<'c, 'a> {
             ports_choisis: Vec::new(),
             envois: Vec::new(),
             a_rouvrir: Vec::new(),
+            index_actif: index.iter().any(Option::is_some),
+            index,
+            passe: 0,
+            places: Vec::new(),
+            cles: vec![Valeur::Entier(0); self.emplacements],
             alea: self.ctx.melanger.then(|| Alea::new(lot.graine)),
         };
         let resultat = self.boucle(lot, &mut local);
@@ -285,6 +306,7 @@ impl<'c, 'a> Reacteur<'c, 'a> {
                 alea.melanger(&mut lot.elements);
             }
             local.compteurs.passes += 1;
+            local.passe += 1;
             let reactions = self.passe(lot, local)?;
             total += reactions;
             if reactions == 0 {
@@ -302,6 +324,7 @@ impl<'c, 'a> Reacteur<'c, 'a> {
             return;
         }
         local.compteurs.receptions += recues.len() as u64;
+        lot.courrier_recu = true;
         if self.ctx.diffuseur.est_actif() {
             let reception = Evenement::Reception {
                 t: self.ctx.temps(),
@@ -378,6 +401,7 @@ impl<'c, 'a> Reacteur<'c, 'a> {
                 }
                 self.tenter(lot, &[i], r, local)
             }
+            2 if local.index[r].is_some() => self.tenter_jointure(lot, i, r, local),
             2 => {
                 let (premier, second) = {
                     let e = element(lot, i);
@@ -406,6 +430,149 @@ impl<'c, 'a> Reacteur<'c, 'a> {
             }
             arite => self.tenter_n_uplets(lot, i, r, arite, local),
         }
+    }
+
+    /// Regle a jointure par egalite : l'ancre tient son role, les
+    /// partenaires sont cherches dans l'index, parmi les seules molecules
+    /// dont la cle vaut celle de l'ancre. Les couples ou l'ancre tient
+    /// l'autre role sont essayes quand le partenaire est lui-meme l'ancre.
+    fn tenter_jointure(
+        &self,
+        lot: &mut Lot,
+        i: usize,
+        r: usize,
+        local: &mut EtatLocal,
+    ) -> Result<bool, Arret> {
+        let regle = &*self.regles[r];
+        let Some(jointure) = &regle.jointure else {
+            return Ok(false);
+        };
+        let ancre = jointure.ancre;
+        local.controler(self.ctx)?;
+        if !regle.motifs[ancre].filtrer(element(lot, i), &mut local.emplacements) {
+            return Ok(false);
+        }
+        let cle = match jointure.cle_ancre.evaluer(&local.emplacements) {
+            Ok(cle) => cle,
+            // Sans index, la condition echouerait sur ces couples : le
+            // parcours complet l'evalue exactement comme sans index.
+            Err(_) => return self.tenter_tous_partenaires(lot, i, r, local),
+        };
+        self.preparer_index(lot, r, local);
+        local.compteurs.consultations_index += 1;
+        let Some(seau) = local.index[r].as_ref().and_then(|ix| ix.seau(&cle)) else {
+            return Ok(false);
+        };
+        let mut k = 0;
+        while let Some((j, id)) = local.index[r].as_ref().and_then(|ix| ix.entree(seau, k)) {
+            let vivante = matches!(&lot.elements[j], Some(Element::Molecule(m)) if m.id == id);
+            if !vivante {
+                // Molecule consommee depuis la construction de l'index.
+                if let Some(ix) = local.index[r].as_mut() {
+                    ix.retirer(seau, k);
+                }
+                continue;
+            }
+            k += 1;
+            if j == i {
+                continue;
+            }
+            local.controler(self.ctx)?;
+            let indices = if ancre == 0 { [i, j] } else { [j, i] };
+            if self.tenter(lot, &indices, r, local)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Repli d'une regle a jointure quand la cle de l'ancre ne peut pas
+    /// etre calculee : l'ancre tient son role face a tous les partenaires.
+    fn tenter_tous_partenaires(
+        &self,
+        lot: &mut Lot,
+        i: usize,
+        r: usize,
+        local: &mut EtatLocal,
+    ) -> Result<bool, Arret> {
+        let regle = &*self.regles[r];
+        let Some(jointure) = &regle.jointure else {
+            return Ok(false);
+        };
+        let (ancre, partenaire) = (jointure.ancre, jointure.partenaire);
+        for j in 0..lot.elements.len() {
+            let candidat = j != i
+                && lot.elements[j]
+                    .as_ref()
+                    .is_some_and(|e| regle.motifs[partenaire].accepte(e));
+            if !candidat {
+                continue;
+            }
+            local.controler(self.ctx)?;
+            let indices = if ancre == 0 { [i, j] } else { [j, i] };
+            if self.tenter(lot, &indices, r, local)? {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    /// Construit l'index de la regle `r` s'il n'est pas a jour pour la
+    /// passe courante (premiere consultation de la passe).
+    fn preparer_index(&self, lot: &Lot, r: usize, local: &mut EtatLocal) {
+        let regle = &*self.regles[r];
+        let Some(jointure) = &regle.jointure else {
+            return;
+        };
+        let EtatLocal {
+            index, cles, passe, ..
+        } = local;
+        let Some(ix) = index[r].as_mut() else {
+            return;
+        };
+        if ix.a_jour(*passe) {
+            return;
+        }
+        ix.reinitialiser(*passe);
+        let motif = &regle.motifs[jointure.partenaire];
+        for (k, e) in lot.elements.iter().enumerate() {
+            if let Some(Element::Molecule(m)) = e
+                && motif.lier(&m.valeur, cles)
+                && let Ok(cle) = jointure.cle_partenaire.evaluer(cles)
+            {
+                ix.inserer(cle, k, m.id);
+            }
+        }
+    }
+
+    /// Range dans les index a jour les molecules placees par la derniere
+    /// reaction (produits, contenu d'une sous-solution dissoute).
+    fn indexer_places(&self, lot: &Lot, local: &mut EtatLocal) {
+        let EtatLocal {
+            index,
+            cles,
+            passe,
+            places,
+            ..
+        } = local;
+        for &k in places.iter() {
+            let Some(Some(Element::Molecule(m))) = lot.elements.get(k) else {
+                continue;
+            };
+            for (r, ix) in index.iter_mut().enumerate() {
+                let (Some(ix), Some(jointure)) = (ix.as_mut(), self.regles[r].jointure.as_ref())
+                else {
+                    continue;
+                };
+                if ix.a_jour(*passe)
+                    && self.regles[r].motifs[jointure.partenaire].lier(&m.valeur, cles)
+                    && let Ok(cle) = jointure.cle_partenaire.evaluer(cles)
+                {
+                    ix.inserer(cle, k, m.id);
+                }
+            }
+        }
+        places.clear();
     }
 
     /// Regles d'arite >= 3 : combinaisons de partenaires puis permutations.
@@ -526,6 +693,9 @@ impl<'c, 'a> Reacteur<'c, 'a> {
         }
         self.valider(lot, indices, r, &mut produits, local);
         local.produits = produits;
+        if local.index_actif {
+            self.indexer_places(lot, local);
+        }
         Ok(true)
     }
 
@@ -661,14 +831,26 @@ impl<'c, 'a> Reacteur<'c, 'a> {
         libres.sort_unstable_by(|a, b| b.cmp(a));
         // Une regle sans reactif n'a pas d'ancre : ses produits vont en fin de lot.
         let mut ancre_libre = !indices.is_empty();
-        let mut placer = |lot: &mut Lot, e: Element| match libres.pop() {
-            Some(k) => lot.elements[k] = Some(e),
-            // Puis l'emplacement de l'ancre : la passe re-tente cette ancre.
-            None if ancre_libre => {
-                ancre_libre = false;
-                lot.elements[ancre] = Some(e);
+        // Emplacements remplis, a ranger dans les index par valeur.
+        let indexer = local.index_actif;
+        let mut places = std::mem::take(&mut local.places);
+        let mut placer = |lot: &mut Lot, e: Element| {
+            let k = match libres.pop() {
+                Some(k) => k,
+                // Puis l'emplacement de l'ancre : la passe re-tente cette ancre.
+                None if ancre_libre => {
+                    ancre_libre = false;
+                    ancre
+                }
+                None => {
+                    lot.elements.push(None);
+                    lot.elements.len() - 1
+                }
+            };
+            lot.elements[k] = Some(e);
+            if indexer {
+                places.push(k);
             }
-            None => lot.elements.push(Some(e)),
         };
         let (numero, t) = if tracer {
             (self.ctx.numero_suivant(), self.ctx.temps())
@@ -791,6 +973,7 @@ impl<'c, 'a> Reacteur<'c, 'a> {
             }
         }
         local.emplacements_libres = libres;
+        local.places = places;
         local.par_regle[r] += 1;
         local.compteurs.reactions += 1;
         if regle.unique {

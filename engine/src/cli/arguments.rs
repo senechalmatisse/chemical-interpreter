@@ -1,9 +1,11 @@
 //! Analyse declarative des arguments de la ligne de commande.
 //!
-//! Point d'integration : ce module joue le role de Clap. Chaque commande
-//! declare ses options dans une table ([`DefinitionOption`]) qui sert a la
-//! fois a l'analyse et a l'aide ; passer a Clap (derive) consiste a
-//! transformer ces tables en structures annotees.
+//! Chaque commande declare ses options dans une table
+//! ([`DefinitionCommande`]) qui sert a la fois a l'analyse et a l'aide.
+//! L'analyse passe par l'interface [`AnalyseurArguments`] :
+//! [`AnalyseurInterne`] est celui de la bibliotheque ; le paquet
+//! `integrations` en fournit un avec Clap, construit a partir des memes
+//! tables. Les deux produisent les memes [`Arguments`].
 
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -35,7 +37,7 @@ pub struct DefinitionCommande {
 }
 
 /// Arguments analyses.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq, Eq)]
 pub struct Arguments {
     valeurs: HashMap<&'static str, String>,
     drapeaux: HashSet<&'static str>,
@@ -54,6 +56,16 @@ impl Arguments {
     /// Drapeau present.
     pub fn drapeau(&self, nom: &str) -> bool {
         self.drapeaux.contains(nom)
+    }
+
+    /// Enregistre la valeur d'une option (la derniere l'emporte).
+    pub fn definir(&mut self, option: &'static str, valeur: impl Into<String>) {
+        self.valeurs.insert(option, valeur.into());
+    }
+
+    /// Leve un drapeau.
+    pub fn lever(&mut self, drapeau: &'static str) {
+        self.drapeaux.insert(drapeau);
     }
 
     /// Entier non signe facultatif.
@@ -93,6 +105,61 @@ pub fn analyser_duree(texte: &str) -> Option<Duration> {
     };
     let valeur: f64 = nombre.trim().parse().ok()?;
     (valeur.is_finite() && valeur >= 0.0).then(|| Duration::from_secs_f64(valeur * facteur))
+}
+
+/// Analyse des arguments d'une sous-commande.
+pub trait AnalyseurArguments: Send + Sync {
+    /// Nom de l'implementation (affiche par `chem --version`).
+    fn nom(&self) -> &'static str;
+
+    /// Analyse les arguments qui suivent le nom de la sous-commande.
+    fn analyser(
+        &self,
+        definition: &DefinitionCommande,
+        arguments: &[String],
+    ) -> Result<Arguments, String>;
+}
+
+/// Analyseur de la bibliotheque ([`analyser`]).
+#[derive(Debug, Default, Clone, Copy)]
+pub struct AnalyseurInterne;
+
+impl AnalyseurArguments for AnalyseurInterne {
+    fn nom(&self) -> &'static str {
+        "interne"
+    }
+
+    fn analyser(
+        &self,
+        definition: &DefinitionCommande,
+        arguments: &[String],
+    ) -> Result<Arguments, String> {
+        analyser(definition, arguments)
+    }
+}
+
+/// Verifie le nombre d'arguments positionnels (sauf si l'aide est demandee).
+pub fn verifier_positionnels(
+    definition: &DefinitionCommande,
+    arguments: &Arguments,
+) -> Result<(), String> {
+    if arguments.aide {
+        return Ok(());
+    }
+    if arguments.positionnels.len() < definition.obligatoires {
+        return Err(format!(
+            "argument manquant : <{}> (voir 'chem {} --help')",
+            definition.positionnels[arguments.positionnels.len()],
+            definition.nom
+        ));
+    }
+    if arguments.positionnels.len() > definition.positionnels.len() {
+        return Err(format!(
+            "argument inattendu '{}'",
+            arguments.positionnels[definition.positionnels.len()]
+        ));
+    }
+    Ok(())
 }
 
 /// Analyse les arguments d'une commande.
@@ -153,21 +220,7 @@ pub fn analyser(
             }
         }
     }
-    if !resultat.aide {
-        if resultat.positionnels.len() < definition.obligatoires {
-            return Err(format!(
-                "argument manquant : <{}> (voir 'chem {} --help')",
-                definition.positionnels[resultat.positionnels.len()],
-                definition.nom
-            ));
-        }
-        if resultat.positionnels.len() > definition.positionnels.len() {
-            return Err(format!(
-                "argument inattendu '{}'",
-                resultat.positionnels[definition.positionnels.len()]
-            ));
-        }
-    }
+    verifier_positionnels(definition, &resultat)?;
     Ok(resultat)
 }
 
